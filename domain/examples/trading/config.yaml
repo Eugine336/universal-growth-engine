@@ -1,0 +1,41 @@
+application:
+  id: trading_platform
+  name: Trading Platform
+  category: fintech_trading
+
+entities:
+  - Trader
+  - Broker
+  - Account
+  - Competition
+  - Portfolio
+  - Trade
+
+events:
+  - ACCOUNT_OPENED
+  - DEPOSIT_MADE
+  - TRADE_EXECUTED
+  - COMPETITION_JOINED
+  - COMPETITION_COMPLETED
+  - WITHDRAWAL_REQUESTED
+  - ACCOUNT_FUNDED
+
+objectives:
+  primary: increase_funded_accounts
+  secondary:
+    - increase_active_traders
+    - reduce_abandonment
+    - increase_retention
+    - increase_competition_participation
+
+kpis:
+  - funded_account_rate
+  - active_trader_rate
+  - avg_deposit_value
+  - competition_participation_rate
+  - 30_day_retention
+  - churn_rate
+
+constraints:
+  compliance: [MiFID2, local_financial_regulations]
+  regions: [global]

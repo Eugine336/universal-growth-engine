@@ -1,0 +1,44 @@
+application:
+  id: ucmc
+  name: UCMC Marketplace
+  category: b2b_marketplace
+
+entities:
+  - Buyer
+  - Seller
+  - Service
+  - AIAgent
+  - Organization
+  - Escrow
+
+events:
+  - SERVICE_VIEWED
+  - PROPOSAL_SENT
+  - ESCROW_CREATED
+  - KYC_COMPLETED
+  - DISPUTE_OPENED
+  - PAYMENT_RELEASED
+  - REVIEW_CREATED
+  - MESSAGE_SENT
+  - OFFER_ACCEPTED
+
+objectives:
+  primary: increase_successful_transactions
+  secondary:
+    - increase_seller_activation
+    - increase_buyer_retention
+    - improve_marketplace_liquidity
+    - reduce_disputes
+
+kpis:
+  - transaction_volume
+  - seller_activation_rate
+  - buyer_retention_rate
+  - avg_time_to_first_transaction
+  - dispute_rate
+  - marketplace_liquidity_score
+
+constraints:
+  regions: [KE, NG, GH, ZA]
+  compliance: [GDPR, local_data_laws]
+  languages: [en, sw]
