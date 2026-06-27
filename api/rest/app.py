@@ -163,6 +163,8 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
         ingest_router,
         referrals_router,
         cross_platform_router,
+        analytics_router,
+        admin_router,
     )
 
     app = FastAPI(
@@ -183,6 +185,8 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     app.include_router(ingest_router, prefix="/api/v1")
     app.include_router(referrals_router, prefix="/api/v1")
     app.include_router(cross_platform_router, prefix="/api/v1")
+    app.include_router(analytics_router, prefix="/api/v1")
+    app.include_router(admin_router, prefix="/api/v1")
 
     logger.info(
         f"UGIE app created | apps={loader.loaded_applications} "
