@@ -9,6 +9,7 @@ from .audiences import router as audiences_router
 from .platforms import router as platforms_router
 from .ingest import router as ingest_router
 from .referrals import router as referrals_router
+from .cross_platform import router as cross_platform_router
 
 __all__ = [
     "health_router",
@@ -22,4 +23,5 @@ __all__ = [
     "platforms_router",
     "ingest_router",
     "referrals_router",
+    "cross_platform_router",
 ]
