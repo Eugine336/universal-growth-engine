@@ -143,11 +143,14 @@ class BehaviorBuilder:
         eng.tier = self._compute_engagement_tier(eng)
 
     def _update_session_window_counts(self, eng, now: datetime) -> None:
-        """Update 7d and 30d session counts."""
-        # Simple approximation — in production use a time-series store
-        # Here we increment and let the analyzer recompute from full history
-        eng.sessions_last_7d = min(eng.sessions_last_7d + 1, eng.total_sessions)
-        eng.sessions_last_30d = min(eng.sessions_last_30d + 1, eng.total_sessions)
+        """Update 7d and 30d session counts from session timestamps."""
+        eng.session_timestamps.append(now)
+        eng.session_timestamps = eng.session_timestamps[-200:]
+
+        cutoff_7d = now - timedelta(days=7)
+        cutoff_30d = now - timedelta(days=30)
+        eng.sessions_last_7d = sum(1 for t in eng.session_timestamps if t > cutoff_7d)
+        eng.sessions_last_30d = sum(1 for t in eng.session_timestamps if t > cutoff_30d)
 
     def _compute_engagement_tier(self, eng) -> str:
         if eng.sessions_last_7d >= 5:

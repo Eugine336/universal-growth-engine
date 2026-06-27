@@ -51,13 +51,14 @@ class IdentityGraph:
         """Persist an identity and rebuild its indexes."""
         self._identities[identity.id] = identity
 
-        # Index all touchpoints
-        for tp in identity.touchpoints:
-            self._touchpoint_index[tp.key()] = identity.id
+        if not identity.is_merged():
+            # Index all touchpoints
+            for tp in identity.touchpoints:
+                self._touchpoint_index[tp.key()] = identity.id
 
-        # Index entity mappings
-        for app_id, entity_id in identity.entity_ids.items():
-            self._entity_index[f"{app_id}:{entity_id}"] = identity.id
+            # Index entity mappings
+            for app_id, entity_id in identity.entity_ids.items():
+                self._entity_index[f"{app_id}:{entity_id}"] = identity.id
 
         logger.debug(f"Saved identity {identity.id} | touchpoints={len(identity.touchpoints)}")
         return identity
