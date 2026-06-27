@@ -1,0 +1,565 @@
+application:
+  id: ucmc_marketplace
+  name: UCMC AI Marketplace
+  category: ai_services_marketplace
+
+entities:
+  - type_name: Buyer
+    description: Marketplace buyer who purchases AI services
+    is_person: true
+    required_attributes: [email_hash, public_key]
+    optional_attributes: [display_name, avatar_url, country, wallet_address]
+    allowed_states: [registered, email_verified, kyc_pending, kyc_verified, active, suspended, banned]
+    initial_state: registered
+
+  - type_name: Seller
+    description: AI service provider who lists and delivers services
+    is_person: true
+    required_attributes: [email_hash, public_key, display_name]
+    optional_attributes: [bio, avatar_url, country, wallet_address, portfolio_url]
+    allowed_states: [registered, email_verified, profile_complete, kyc_pending, kyc_verified, active, portfolio_submitted, portfolio_approved, suspended, banned]
+    initial_state: registered
+
+  - type_name: Listing
+    description: An AI service listing on the marketplace
+    is_asset: true
+    required_attributes: [title, category, price, listing_type]
+    optional_attributes: [description, tags, delivery_time_days, revisions]
+    allowed_states: [draft, active, paused, sold_out, archived]
+    initial_state: draft
+    allowed_relationship_types: [created_by, purchased_by, reviewed_on]
+
+  - type_name: Escrow
+    description: Payment escrow between buyer and seller
+    required_attributes: [buyer_id, seller_id, listing_id, amount]
+    optional_attributes: [currency, payment_ref, paystack_ref]
+    allowed_states: [initiated, locked, delivered, released, reverted, disputed, finalized]
+    initial_state: initiated
+    allowed_relationship_types: [buyer, seller, listing, dispute]
+
+  - type_name: Dispute
+    description: Dispute filed on an escrow transaction
+    required_attributes: [filer_id, respondent_id, escrow_id, reason]
+    optional_attributes: [evidence_urls, resolution_notes]
+    allowed_states: [open, evidence, voting, resolved]
+    initial_state: open
+    allowed_relationship_types: [escrow, filer, respondent]
+
+  - type_name: Portfolio
+    description: Seller portfolio showcasing past work
+    is_asset: true
+    required_attributes: [seller_id, title]
+    optional_attributes: [description, samples, tags]
+    allowed_states: [draft, submitted, approved, rejected]
+    initial_state: draft
+    allowed_relationship_types: [owned_by]
+
+events:
+  allowed:
+    - USER_REGISTERED
+    - USER_VERIFIED
+    - LOGIN_SUCCESS
+    - SESSION_STARTED
+    - SESSION_ENDED
+    - PAGE_VIEWED
+    - FEATURE_USED
+    - SEARCH_EXECUTED
+    - ITEM_VIEWED
+    - ITEM_SAVED
+    - MESSAGE_SENT
+    - MESSAGE_READ
+    - ENTITY_CREATED
+    - ENTITY_UPDATED
+    - CONTENT_CREATED
+    - CONTENT_PUBLISHED
+    - CONTENT_VIEWED
+    - OFFER_MADE
+    - OFFER_ACCEPTED
+    - OFFER_REJECTED
+    - ORDER_CREATED
+    - ORDER_COMPLETED
+    - PAYMENT_INITIATED
+    - PAYMENT_COMPLETED
+    - PAYMENT_FAILED
+    - REFUND_COMPLETED
+    - REVIEW_CREATED
+    - REVIEW_RESPONDED
+    - DISPUTE_OPENED
+    - DISPUTE_RESOLVED
+    - FLAG_SUBMITTED
+    - KYC_STARTED
+    - KYC_COMPLETED
+    - KYC_FAILED
+    - REFERRAL_SENT
+    - REFERRAL_CONVERTED
+    - ACCOUNT_DEACTIVATED
+    - EMAIL_SENT
+    - EMAIL_OPENED
+    - EMAIL_CLICKED
+    - NOTIFICATION_SENT
+    - NOTIFICATION_OPENED
+    - CUSTOM
+  blocked:
+    - SUBSCRIPTION_STARTED
+    - SUBSCRIPTION_RENEWED
+    - SUBSCRIPTION_CANCELLED
+  require_actor: true
+  max_properties_size_bytes: 131072
+
+state_machines:
+  - type_name: Buyer
+    initial_state: registered
+    states: [registered, email_verified, kyc_pending, kyc_verified, active, suspended, banned]
+    transitions:
+      - from: registered
+        to: email_verified
+        trigger_events: [USER_VERIFIED]
+        label: Email address verified
+      - from: email_verified
+        to: kyc_pending
+        trigger_events: [KYC_STARTED]
+        label: KYC verification submitted
+      - from: kyc_pending
+        to: kyc_verified
+        trigger_events: [KYC_COMPLETED]
+        label: KYC identity verified
+      - from: kyc_verified
+        to: active
+        trigger_events: [PAYMENT_COMPLETED]
+        label: First escrow payment completed
+      - from: active
+        to: suspended
+        trigger_events: [ACCOUNT_DEACTIVATED]
+        label: Account suspended by admin
+      - from: suspended
+        to: banned
+        trigger_events: [CUSTOM]
+        label: Account permanently banned
+
+  - type_name: Seller
+    initial_state: registered
+    states: [registered, email_verified, profile_complete, kyc_pending, kyc_verified, active, portfolio_submitted, portfolio_approved, suspended, banned]
+    transitions:
+      - from: registered
+        to: email_verified
+        trigger_events: [USER_VERIFIED]
+        label: Email address verified
+      - from: email_verified
+        to: profile_complete
+        trigger_events: [ENTITY_UPDATED]
+        label: Seller profile completed
+      - from: profile_complete
+        to: kyc_pending
+        trigger_events: [KYC_STARTED]
+        label: KYC verification submitted
+      - from: kyc_pending
+        to: kyc_verified
+        trigger_events: [KYC_COMPLETED]
+        label: KYC identity verified
+      - from: kyc_verified
+        to: active
+        trigger_events: [CONTENT_CREATED]
+        label: First listing published
+      - from: active
+        to: portfolio_submitted
+        trigger_events: [ENTITY_CREATED]
+        label: Portfolio submitted for review
+      - from: portfolio_submitted
+        to: portfolio_approved
+        trigger_events: [CUSTOM]
+        label: Portfolio approved by moderator
+      - from: active
+        to: suspended
+        trigger_events: [ACCOUNT_DEACTIVATED]
+        label: Account suspended by admin
+      - from: suspended
+        to: banned
+        trigger_events: [CUSTOM]
+        label: Account permanently banned
+
+  - type_name: Listing
+    initial_state: draft
+    states: [draft, active, paused, sold_out, archived]
+    transitions:
+      - from: draft
+        to: active
+        trigger_events: [CONTENT_PUBLISHED]
+        label: Listing published to marketplace
+      - from: active
+        to: paused
+        trigger_events: [ENTITY_UPDATED]
+        label: Seller paused listing
+      - from: paused
+        to: active
+        trigger_events: [CONTENT_PUBLISHED]
+        label: Listing reactivated
+      - from: active
+        to: sold_out
+        trigger_events: [CUSTOM]
+        label: All slots filled
+      - from: active
+        to: archived
+        trigger_events: [ENTITY_UPDATED]
+        label: Listing archived by seller
+      - from: paused
+        to: archived
+        trigger_events: [ENTITY_UPDATED]
+        label: Paused listing archived
+
+  - type_name: Escrow
+    initial_state: initiated
+    states: [initiated, locked, delivered, released, reverted, disputed, finalized]
+    transitions:
+      - from: initiated
+        to: locked
+        trigger_events: [PAYMENT_INITIATED]
+        label: Funds locked in escrow via Paystack
+      - from: locked
+        to: delivered
+        trigger_events: [ORDER_COMPLETED]
+        label: Seller confirms delivery
+      - from: delivered
+        to: released
+        trigger_events: [PAYMENT_COMPLETED]
+        label: Buyer releases escrow funds
+      - from: locked
+        to: reverted
+        trigger_events: [REFUND_COMPLETED]
+        label: Escrow reverted to buyer
+      - from: locked
+        to: disputed
+        trigger_events: [DISPUTE_OPENED]
+        label: Dispute filed on locked escrow
+      - from: delivered
+        to: disputed
+        trigger_events: [DISPUTE_OPENED]
+        label: Dispute filed after delivery
+      - from: disputed
+        to: released
+        trigger_events: [DISPUTE_RESOLVED]
+        label: Dispute resolved in seller favor
+      - from: disputed
+        to: reverted
+        trigger_events: [DISPUTE_RESOLVED]
+        label: Dispute resolved in buyer favor
+      - from: released
+        to: finalized
+        trigger_events: [CUSTOM]
+        label: Transaction finalized and settled
+      - from: reverted
+        to: finalized
+        trigger_events: [CUSTOM]
+        label: Refund finalized and settled
+
+  - type_name: Dispute
+    initial_state: open
+    states: [open, evidence, voting, resolved]
+    transitions:
+      - from: open
+        to: evidence
+        trigger_events: [ENTITY_UPDATED]
+        label: Evidence submission period
+      - from: evidence
+        to: voting
+        trigger_events: [CUSTOM]
+        label: Community voting on dispute
+      - from: voting
+        to: resolved
+        trigger_events: [DISPUTE_RESOLVED]
+        label: Dispute resolved
+
+  - type_name: Portfolio
+    initial_state: draft
+    states: [draft, submitted, approved, rejected]
+    transitions:
+      - from: draft
+        to: submitted
+        trigger_events: [ENTITY_CREATED]
+        label: Portfolio submitted for review
+      - from: submitted
+        to: approved
+        trigger_events: [CUSTOM]
+        label: Portfolio approved by moderator
+      - from: submitted
+        to: rejected
+        trigger_events: [CUSTOM]
+        label: Portfolio rejected by moderator
+      - from: rejected
+        to: draft
+        trigger_events: [ENTITY_UPDATED]
+        label: Portfolio revised for resubmission
+
+policies:
+  # --- Onboarding sequence ---
+
+  - name: Welcome Email
+    description: Send welcome email immediately after registration
+    trigger_events: [USER_REGISTERED]
+    action:
+      action_type: SEND_EMAIL
+      channel: email
+      priority: 80
+      payload_template:
+        template: ucmc_welcome
+        subject: "Welcome to UCMC — the AI services marketplace"
+      valid_hours: 2
+    cooldown_hours: 0
+    max_executions_per_identity: 1
+
+  - name: Seller Profile Nudge
+    description: Nudge sellers who registered but haven't completed their profile after sessions
+    trigger_events: [SESSION_STARTED]
+    conditions:
+      - field: engagement_tier
+        operator: in
+        value: [cold, warming]
+      - field: churn_score
+        operator: lt
+        value: 0.5
+    target_entity_types: [Seller]
+    target_engagement_tiers: [cold, warming]
+    action:
+      action_type: SEND_IN_APP
+      priority: 55
+      payload_template:
+        template: seller_profile_nudge
+        message: "Complete your profile to start receiving orders"
+      valid_hours: 24
+    cooldown_hours: 72
+    abort_if_events: [ENTITY_UPDATED]
+
+  - name: KYC Nudge
+    description: Nudge users who haven't started KYC verification
+    trigger_events: [SESSION_STARTED]
+    conditions:
+      - field: days_inactive
+        operator: lt
+        value: 30
+      - field: total_sessions
+        operator: gte
+        value: 2
+    action:
+      action_type: SEND_EMAIL
+      channel: email
+      priority: 60
+      payload_template:
+        template: kyc_nudge
+        subject: "Verify your identity to unlock full marketplace access"
+      valid_hours: 48
+    cooldown_hours: 120
+    max_executions_per_identity: 3
+    abort_if_events: [KYC_STARTED, KYC_COMPLETED]
+
+  - name: First Listing Nudge
+    description: Encourage KYC-verified sellers to create their first listing
+    trigger_events: [SESSION_STARTED]
+    conditions:
+      - field: engagement_tier
+        operator: in
+        value: [warming, active]
+      - field: conversion_score
+        operator: lt
+        value: 0.3
+    target_entity_types: [Seller]
+    target_engagement_tiers: [warming, active]
+    action:
+      action_type: SEND_IN_APP
+      priority: 58
+      payload_template:
+        template: create_first_listing
+        message: "Create your first listing — buyers are searching for services like yours"
+      valid_hours: 24
+    cooldown_hours: 168
+    max_executions_per_identity: 5
+    abort_if_events: [CONTENT_CREATED]
+
+  # --- Buyer engagement ---
+
+  - name: Buyer Re-engagement
+    description: Re-engage buyers who browsed but are showing churn signals
+    conditions:
+      - field: churn_score
+        operator: gte
+        value: 0.4
+      - field: total_sessions
+        operator: gte
+        value: 3
+      - field: fraud_score
+        operator: lt
+        value: 0.3
+    action:
+      action_type: SEND_EMAIL
+      channel: email
+      priority: 65
+      payload_template:
+        template: buyer_reengagement
+        subject: "New AI services matching your interests"
+      valid_hours: 48
+    cooldown_hours: 168
+    abort_if_events: [SESSION_STARTED, PAYMENT_COMPLETED]
+
+  - name: Buyer Browse Recommendation
+    description: Show personalized service recommendations to active browsers
+    trigger_events: [SEARCH_EXECUTED, ITEM_VIEWED]
+    conditions:
+      - field: engagement_tier
+        operator: in
+        value: [active, power]
+      - field: conversion_score
+        operator: gte
+        value: 0.3
+    target_engagement_tiers: [active, power]
+    action:
+      action_type: SHOW_RECOMMENDATION
+      priority: 45
+      payload_template:
+        template: service_recommendations
+      valid_hours: 4
+    cooldown_hours: 24
+
+  # --- Transaction lifecycle ---
+
+  - name: Post-Transaction Review Request
+    description: Ask buyers to review sellers after successful escrow release
+    trigger_events: [PAYMENT_COMPLETED, ORDER_COMPLETED]
+    conditions:
+      - field: fraud_score
+        operator: lt
+        value: 0.3
+    action:
+      action_type: SEND_EMAIL
+      channel: email
+      priority: 50
+      payload_template:
+        template: review_request
+        subject: "How was your experience? Leave a review"
+      delay_hours: 24
+      valid_hours: 72
+    cooldown_hours: 168
+    abort_if_events: [DISPUTE_OPENED]
+
+  - name: Delivery Reminder
+    description: Remind sellers about pending deliveries when churn risk rises
+    conditions:
+      - field: churn_score
+        operator: gte
+        value: 0.5
+      - field: days_inactive
+        operator: gte
+        value: 3
+    target_entity_types: [Seller]
+    action:
+      action_type: SEND_IN_APP
+      priority: 70
+      payload_template:
+        template: delivery_reminder
+        message: "You have pending deliveries — complete them to maintain your rating"
+      valid_hours: 24
+    cooldown_hours: 48
+
+  # --- Growth & referral ---
+
+  - name: Power Seller Referral Ask
+    description: Ask top-performing sellers to refer other service providers
+    target_engagement_tiers: [power]
+    target_rfm_segments: [champions, loyal]
+    conditions:
+      - field: referral_score
+        operator: gte
+        value: 0.5
+      - field: churn_score
+        operator: lt
+        value: 0.3
+    action:
+      action_type: SEND_EMAIL
+      channel: email
+      priority: 45
+      payload_template:
+        template: seller_referral_ask
+        subject: "Know great AI service providers? Refer them to UCMC"
+      valid_hours: 72
+    cooldown_hours: 336
+
+  - name: Buyer Retention Offer
+    description: Offer discount to buyers at risk of churning who have converted before
+    conditions:
+      - field: churn_score
+        operator: gte
+        value: 0.6
+      - field: conversion_score
+        operator: gte
+        value: 0.3
+      - field: total_conversions
+        operator: gte
+        value: 1
+    action:
+      action_type: SHOW_DISCOUNT
+      priority: 65
+      payload_template:
+        template: buyer_retention_discount
+        discount_percent: 10
+        message: "We miss you! Here's 10% off your next AI service"
+      valid_hours: 48
+    cooldown_hours: 336
+
+  # --- Trust & safety ---
+
+  - name: Fraud Flag
+    description: Flag high-fraud-risk identities for admin review
+    conditions:
+      - field: fraud_score
+        operator: gte
+        value: 0.7
+    action:
+      action_type: FLAG_FOR_REVIEW
+      priority: 95
+      payload_template:
+        reason: high_fraud_probability
+        action: suspend_and_review
+      valid_hours: 24
+    cooldown_hours: 48
+
+  - name: Sanctions Flag
+    description: Escalate identities flagged by OFAC/SDN screening
+    trigger_events: [CUSTOM]
+    conditions:
+      - field: fraud_score
+        operator: gte
+        value: 0.5
+    action:
+      action_type: ESCALATE_SUPPORT
+      priority: 99
+      payload_template:
+        reason: sanctions_screening_hit
+        action: immediate_review
+      valid_hours: 4
+    cooldown_hours: 24
+
+objectives:
+  primary: increase_successful_transactions
+  secondary:
+    - increase_seller_activation
+    - increase_buyer_conversion
+    - reduce_dispute_rate
+    - improve_marketplace_liquidity
+    - increase_repeat_transactions
+    - reduce_time_to_first_transaction
+
+kpis:
+  - seller_activation_rate
+  - buyer_conversion_rate
+  - escrow_completion_rate
+  - avg_time_to_first_transaction
+  - dispute_rate
+  - repeat_transaction_rate
+  - platform_gmv
+  - seller_retention_30d
+  - buyer_retention_30d
+  - kyc_completion_rate
+  - avg_review_score
+  - referral_conversion_rate
+
+constraints:
+  regions: [KE, NG, GH, ZA, US, GB]
+  compliance: [GDPR, CCPA, local_data_laws, OFAC_SDN]
+  languages: [en, sw, fr]
