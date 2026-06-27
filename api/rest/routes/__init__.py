@@ -12,6 +12,7 @@ from .referrals import router as referrals_router
 from .cross_platform import router as cross_platform_router
 from .analytics import router as analytics_router
 from .admin import router as admin_router
+from .budget import router as budget_router
 
 __all__ = [
     "health_router",
@@ -28,4 +29,5 @@ __all__ = [
     "cross_platform_router",
     "analytics_router",
     "admin_router",
+    "budget_router",
 ]

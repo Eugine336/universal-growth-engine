@@ -36,6 +36,7 @@ from core.ingest.sources.generic import GenericTransformer
 from core.ingest.sources.paystack import PaystackTransformer
 from core.ingest.sources.shopify import ShopifyTransformer
 from core.ingest.sources.stripe import StripeTransformer
+from core.budget.engine import BudgetAllocator
 from core.platform.registry import PlatformRegistry
 from core.prediction.engine import PredictionEngine
 from core.referral.engine import ReferralEngine
@@ -65,6 +66,7 @@ class Pipeline:
         self.ingest_registry: Optional[InboundTransformerRegistry] = None
         self.referral_engine: Optional[ReferralEngine] = None
         self.cross_platform_manager: Optional[CrossPlatformManager] = None
+        self.budget_allocator: Optional[BudgetAllocator] = None
 
 
 pipeline = Pipeline()
@@ -149,6 +151,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     pipeline.ingest_registry = ingest_registry
     pipeline.referral_engine = referral_engine
     pipeline.cross_platform_manager = cross_platform_manager
+    pipeline.budget_allocator = BudgetAllocator()
 
     from api.rest.routes import (
         health_router,
@@ -165,6 +168,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
         cross_platform_router,
         analytics_router,
         admin_router,
+        budget_router,
     )
 
     app = FastAPI(
@@ -187,6 +191,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     app.include_router(cross_platform_router, prefix="/api/v1")
     app.include_router(analytics_router, prefix="/api/v1")
     app.include_router(admin_router, prefix="/api/v1")
+    app.include_router(budget_router, prefix="/api/v1")
 
     logger.info(
         f"UGIE app created | apps={loader.loaded_applications} "
