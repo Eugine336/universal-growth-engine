@@ -28,6 +28,7 @@ from core.entity.state import EntityStateMachine
 from core.events.bus import EventBus
 from core.events.validator import EventValidator
 from core.experimentation.engine import ExperimentationEngine
+from core.identity.cross_platform import CrossPlatformManager
 from core.identity.graph import IdentityGraph
 from core.identity.resolver import IdentityResolver
 from core.ingest.transformer import InboundTransformerRegistry
@@ -63,6 +64,7 @@ class Pipeline:
         self.platform_registry: Optional[PlatformRegistry] = None
         self.ingest_registry: Optional[InboundTransformerRegistry] = None
         self.referral_engine: Optional[ReferralEngine] = None
+        self.cross_platform_manager: Optional[CrossPlatformManager] = None
 
 
 pipeline = Pipeline()
@@ -92,9 +94,10 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
 
     event_bus = EventBus(validator=validator)
     identity_graph = IdentityGraph()
-    identity_resolver = IdentityResolver(identity_graph)
-    behavior_builder = BehaviorBuilder()
     behavior_repo = BehaviorRepository()
+    cross_platform_manager = CrossPlatformManager(identity_graph, behavior_repo)
+    identity_resolver = IdentityResolver(identity_graph, cross_platform_manager)
+    behavior_builder = BehaviorBuilder()
     prediction_engine = PredictionEngine(behavior_repo)
     experimentation_engine = ExperimentationEngine()
     decision_engine = DecisionEngine(
@@ -145,6 +148,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     pipeline.platform_registry = platform_registry
     pipeline.ingest_registry = ingest_registry
     pipeline.referral_engine = referral_engine
+    pipeline.cross_platform_manager = cross_platform_manager
 
     from api.rest.routes import (
         health_router,
@@ -158,6 +162,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
         platforms_router,
         ingest_router,
         referrals_router,
+        cross_platform_router,
     )
 
     app = FastAPI(
@@ -177,6 +182,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     app.include_router(platforms_router, prefix="/api/v1")
     app.include_router(ingest_router, prefix="/api/v1")
     app.include_router(referrals_router, prefix="/api/v1")
+    app.include_router(cross_platform_router, prefix="/api/v1")
 
     logger.info(
         f"UGIE app created | apps={loader.loaded_applications} "

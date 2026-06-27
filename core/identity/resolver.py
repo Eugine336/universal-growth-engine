@@ -27,6 +27,11 @@ from .schema import (
     TouchpointType,
 )
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .cross_platform import CrossPlatformManager
+
 logger = logging.getLogger(__name__)
 
 
@@ -56,9 +61,14 @@ class IdentityResolver:
         identity = result.identity
     """
 
-    def __init__(self, graph: IdentityGraph):
+    def __init__(
+        self,
+        graph: IdentityGraph,
+        cross_platform_manager: Optional["CrossPlatformManager"] = None,
+    ):
         self._graph = graph
         self._merger = IdentityMerger(graph)
+        self._cross_platform = cross_platform_manager
 
     def resolve(
         self,
@@ -253,3 +263,47 @@ class IdentityResolver:
                 canonical = result.canonical
 
         return canonical
+
+    def resolve_cross_platform(
+        self,
+        platform_id: str,
+        touchpoints: List[IdentityTouchpoint],
+        entity_id: Optional[str] = None,
+        traits: Optional[dict] = None,
+    ) -> ResolutionResult:
+        """
+        Resolve touchpoints with cross-platform linking awareness.
+
+        If cross-platform linking is enabled for this platform, the resolver
+        will link to existing identities from OTHER platforms that share
+        matching touchpoints instead of creating a duplicate.
+
+        If linking is disabled, behavior is identical to resolve().
+        """
+        if not self._cross_platform or not self._cross_platform.is_linking_enabled(platform_id):
+            return self.resolve(
+                application_id=platform_id,
+                touchpoints=touchpoints,
+                entity_id=entity_id,
+                traits=traits,
+            )
+
+        result = self.resolve(
+            application_id=platform_id,
+            touchpoints=touchpoints,
+            entity_id=entity_id,
+            traits=traits,
+        )
+
+        if len(result.identity.application_ids) > 1:
+            for tp in result.identity.touchpoints:
+                if tp.type.value in self._cross_platform.get_platform_config(platform_id).linkable_touchpoint_types:
+                    self._cross_platform.record_link(
+                        identity_id=result.identity.id,
+                        platform_ids=result.identity.application_ids[:],
+                        link_type=tp.type.value,
+                        link_value=tp.value,
+                    )
+                    break
+
+        return result

@@ -5,6 +5,7 @@ Responsibilities:
 - Maintain a persistent identity graph
 - Resolve any actor (email, device, OAuth, wallet, API key) to one identity
 - Merge identities when the same person is detected across touchpoints
+- Cross-platform identity linking with consent management
 - Expose identity profiles to downstream modules
 """
 
@@ -12,6 +13,11 @@ from .schema import Identity, IdentityTouchpoint, TouchpointType, IdentityStatus
 from .resolver import IdentityResolver
 from .graph import IdentityGraph
 from .merger import IdentityMerger
+from .cross_platform import (
+    CrossPlatformConfig,
+    CrossPlatformLink,
+    CrossPlatformManager,
+)
 
 __all__ = [
     "Identity",
@@ -21,4 +27,7 @@ __all__ = [
     "IdentityResolver",
     "IdentityGraph",
     "IdentityMerger",
+    "CrossPlatformConfig",
+    "CrossPlatformLink",
+    "CrossPlatformManager",
 ]
