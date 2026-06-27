@@ -40,11 +40,18 @@ from core.behavior.schema import (
     IntentSignal,
 )
 
+from core.platform.schema import (
+    Platform,
+    PlatformQuotas,
+    PlatformStatus,
+)
+
 from .models import (
     EntityModel,
     EntityRelationshipModel,
     IdentityModel,
     BehavioralProfileModel,
+    PlatformModel,
 )
 
 logger = logging.getLogger(__name__)
@@ -743,4 +750,108 @@ class SqlBehaviorRepository:
             created_at=_parse_datetime(row.created_at) or datetime.now(timezone.utc),
             updated_at=_parse_datetime(row.updated_at) or datetime.now(timezone.utc),
             last_event_at=_parse_datetime(row.last_event_at),
+        )
+
+
+# ======================================================================
+# SqlPlatformRepository
+# ======================================================================
+
+class SqlPlatformRepository:
+
+    def __init__(self, session_factory):
+        self._session_factory = session_factory
+        logger.info("SqlPlatformRepository initialized")
+
+    def _session(self) -> Session:
+        return self._session_factory()
+
+    def save(self, platform: Platform) -> Platform:
+        session = self._session()
+        try:
+            model = self._to_model(platform)
+            session.merge(model)
+            session.commit()
+            return platform
+        finally:
+            session.close()
+
+    def get_by_id(self, platform_id: str) -> Optional[Platform]:
+        session = self._session()
+        try:
+            row = session.get(PlatformModel, platform_id)
+            return self._from_model(row) if row else None
+        finally:
+            session.close()
+
+    def get_by_slug(self, slug: str) -> Optional[Platform]:
+        session = self._session()
+        try:
+            row = session.query(PlatformModel).filter_by(slug=slug).first()
+            return self._from_model(row) if row else None
+        finally:
+            session.close()
+
+    def get_by_api_key_hash(self, key_hash: str) -> Optional[Platform]:
+        session = self._session()
+        try:
+            row = session.query(PlatformModel).filter_by(api_key_hash=key_hash).first()
+            return self._from_model(row) if row else None
+        finally:
+            session.close()
+
+    def list_all(self, status: Optional[str] = None) -> List[Platform]:
+        session = self._session()
+        try:
+            q = session.query(PlatformModel)
+            if status:
+                q = q.filter_by(status=status)
+            return [self._from_model(r) for r in q.all()]
+        finally:
+            session.close()
+
+    def delete(self, platform_id: str) -> bool:
+        session = self._session()
+        try:
+            row = session.get(PlatformModel, platform_id)
+            if row:
+                session.delete(row)
+                session.commit()
+                return True
+            return False
+        finally:
+            session.close()
+
+    def _to_model(self, platform: Platform) -> PlatformModel:
+        return PlatformModel(
+            id=platform.id,
+            name=platform.name,
+            slug=platform.slug,
+            api_key_hash=platform.api_key_hash,
+            api_key_prefix=platform.api_key_prefix,
+            status=platform.status.value if isinstance(platform.status, PlatformStatus) else platform.status,
+            owner_email=platform.owner_email,
+            config_yaml=platform.config_yaml,
+            quotas=_json_dumps(platform.quotas.model_dump()),
+            metadata_=_json_dumps(platform.metadata),
+            created_at=platform.created_at,
+            updated_at=platform.updated_at,
+        )
+
+    def _from_model(self, row: PlatformModel) -> Platform:
+        quotas_data = _json_loads(row.quotas, {})
+        meta_data = _json_loads(row.metadata_, {})
+        return Platform(
+            id=row.id,
+            name=row.name,
+            slug=row.slug,
+            api_key_hash=row.api_key_hash,
+            api_key_prefix=row.api_key_prefix,
+            status=PlatformStatus(row.status),
+            owner_email=row.owner_email,
+            config_yaml=row.config_yaml,
+            quotas=PlatformQuotas(**quotas_data),
+            metadata=meta_data,
+            created_at=_parse_datetime(row.created_at) or datetime.now(timezone.utc),
+            updated_at=_parse_datetime(row.updated_at) or datetime.now(timezone.utc),
         )

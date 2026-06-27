@@ -5,6 +5,7 @@ from .identities import router as identities_router
 from .decisions import router as decisions_router
 from .webhooks import router as webhooks_router
 from .experiments import router as experiments_router
+from .platforms import router as platforms_router
 
 __all__ = [
     "health_router",
@@ -14,4 +15,5 @@ __all__ = [
     "decisions_router",
     "webhooks_router",
     "experiments_router",
+    "platforms_router",
 ]

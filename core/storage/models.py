@@ -150,6 +150,23 @@ class DecisionModel(Base):
     updated_at = Column(DateTime, default=_utcnow)
 
 
+class PlatformModel(Base):
+    __tablename__ = "platforms"
+
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False)
+    slug = Column(String, nullable=False, unique=True, index=True)
+    api_key_hash = Column(String, nullable=False, index=True)
+    api_key_prefix = Column(String, nullable=False)
+    status = Column(String, default="active", index=True)
+    owner_email = Column(String, nullable=False)
+    config_yaml = Column(Text, nullable=True)
+    quotas = Column(Text, default="{}")
+    metadata_ = Column("metadata", Text, default="{}")
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow)
+
+
 class ActionModel(Base):
     __tablename__ = "actions"
 

@@ -28,6 +28,7 @@ from core.events.validator import EventValidator
 from core.experimentation.engine import ExperimentationEngine
 from core.identity.graph import IdentityGraph
 from core.identity.resolver import IdentityResolver
+from core.platform.registry import PlatformRegistry
 from core.prediction.engine import PredictionEngine
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,7 @@ class Pipeline:
         self.connector_registry: Optional[ConnectorRegistry] = None
         self.config_loader: Optional[DomainConfigLoader] = None
         self.experimentation_engine: Optional[ExperimentationEngine] = None
+        self.platform_registry: Optional[PlatformRegistry] = None
 
 
 pipeline = Pipeline()
@@ -92,6 +94,8 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     )
     entity_repo = EntityRepository()
 
+    platform_registry = PlatformRegistry()
+
     pipeline.event_bus = event_bus
     pipeline.identity_graph = identity_graph
     pipeline.identity_resolver = identity_resolver
@@ -104,6 +108,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     pipeline.connector_registry = connector_registry
     pipeline.config_loader = loader
     pipeline.experimentation_engine = experimentation_engine
+    pipeline.platform_registry = platform_registry
 
     from api.rest.routes import (
         health_router,
@@ -113,6 +118,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
         decisions_router,
         webhooks_router,
         experiments_router,
+        platforms_router,
     )
 
     app = FastAPI(
@@ -128,6 +134,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     app.include_router(decisions_router, prefix="/api/v1")
     app.include_router(webhooks_router, prefix="/api/v1")
     app.include_router(experiments_router, prefix="/api/v1")
+    app.include_router(platforms_router, prefix="/api/v1")
 
     logger.info(
         f"UGIE app created | apps={loader.loaded_applications} "

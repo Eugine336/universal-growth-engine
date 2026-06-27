@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from core.entity.schema import Entity, EntityType, EntityStatus
+from core.platform.schema import Platform
 from api.rest.app import pipeline
+from api.rest.middleware import get_current_platform
 
 router = APIRouter(tags=["entities"])
 
@@ -25,7 +27,10 @@ class EntityCreateRequest(BaseModel):
 
 
 @router.post("/entities")
-def create_entity(req: EntityCreateRequest):
+def create_entity(
+    req: EntityCreateRequest,
+    platform: Optional[Platform] = Depends(get_current_platform),
+):
     try:
         entity_type = EntityType(req.type)
     except ValueError:
@@ -36,8 +41,9 @@ def create_entity(req: EntityCreateRequest):
     except ValueError:
         status = EntityStatus.ACTIVE
 
+    app_id = platform.id if platform else req.application_id
     entity = Entity(
-        application_id=req.application_id,
+        application_id=app_id,
         type=entity_type,
         type_name=req.type_name,
         status=status,
@@ -51,9 +57,14 @@ def create_entity(req: EntityCreateRequest):
 
 
 @router.get("/entities/{entity_id}")
-def get_entity(entity_id: str):
+def get_entity(
+    entity_id: str,
+    platform: Optional[Platform] = Depends(get_current_platform),
+):
     entity = pipeline.entity_repo.get(entity_id)
     if not entity:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    if platform and entity.application_id != platform.id:
         raise HTTPException(status_code=404, detail="Entity not found")
     return entity.model_dump()
 
@@ -63,8 +74,10 @@ def list_entities(
     application_id: Optional[str] = Query(None),
     type_name: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
+    platform: Optional[Platform] = Depends(get_current_platform),
 ):
-    if application_id and type_name:
+    app_id = platform.id if platform else application_id
+    if app_id and type_name:
         entity_status = None
         if status:
             try:
@@ -72,7 +85,7 @@ def list_entities(
             except ValueError:
                 pass
         entities = pipeline.entity_repo.find_by_application_and_type(
-            application_id, type_name, entity_status
+            app_id, type_name, entity_status
         )
     else:
         entities = []
@@ -80,7 +93,14 @@ def list_entities(
 
 
 @router.delete("/entities/{entity_id}")
-def delete_entity(entity_id: str):
+def delete_entity(
+    entity_id: str,
+    platform: Optional[Platform] = Depends(get_current_platform),
+):
+    if platform:
+        entity = pipeline.entity_repo.get(entity_id)
+        if not entity or entity.application_id != platform.id:
+            raise HTTPException(status_code=404, detail="Entity not found")
     entity = pipeline.entity_repo.soft_delete(entity_id)
     if not entity:
         raise HTTPException(status_code=404, detail="Entity not found")
