@@ -14,6 +14,7 @@ from typing import List, Optional
 
 import yaml
 
+from core.action.connector import ConnectorRegistry
 from core.decision.policy import (
     Policy,
     PolicyAction,
@@ -58,11 +59,13 @@ class DomainConfigLoader:
         state_machine: EntityStateMachine,
         event_validator: EventValidator,
         policy_registry: PolicyRegistry,
+        connector_registry: Optional[ConnectorRegistry] = None,
     ):
         self._entity_registry = entity_registry
         self._state_machine = state_machine
         self._event_validator = event_validator
         self._policy_registry = policy_registry
+        self._connector_registry = connector_registry
         self._loaded_apps: List[str] = []
 
     @property
@@ -96,13 +99,15 @@ class DomainConfigLoader:
         self._register_state_machines(config)
         self._register_event_policy(config)
         self._register_policies(config)
+        self._register_connectors(config)
 
         self._loaded_apps.append(app_id)
         logger.info(
             f"Domain config loaded | app={app_id} "
             f"entities={len(config.entities)} "
             f"state_machines={len(config.state_machines)} "
-            f"policies={len(config.policies)}"
+            f"policies={len(config.policies)} "
+            f"connectors={len(config.connectors)}"
         )
         return config
 
@@ -217,3 +222,29 @@ class DomainConfigLoader:
                 abort_if_events=p_cfg.abort_if_events,
             )
             self._policy_registry.register(policy)
+
+    def _register_connectors(self, config: ApplicationConfig) -> None:
+        if not self._connector_registry or not config.connectors:
+            return
+        from connectors.webhook.connector import WebhookConnector
+        from connectors.webhook.transformer import TRANSFORMER_REGISTRY
+
+        for c_cfg in config.connectors:
+            transformer = TRANSFORMER_REGISTRY.get(c_cfg.transformer)
+            if not transformer:
+                logger.warning(
+                    f"Unknown transformer '{c_cfg.transformer}' "
+                    f"for connector '{c_cfg.id}', using generic_webhook"
+                )
+                transformer = TRANSFORMER_REGISTRY["generic_webhook"]
+
+            connector = WebhookConnector(
+                connector_id=c_cfg.id,
+                name=c_cfg.name,
+                supported_action_types=c_cfg.action_types,
+                webhook_url=c_cfg.webhook_url,
+                headers=dict(c_cfg.headers),
+                transformer=transformer,
+                timeout_seconds=c_cfg.timeout_seconds,
+            )
+            self._connector_registry.register(connector)

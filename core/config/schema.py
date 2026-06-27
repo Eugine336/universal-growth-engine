@@ -93,6 +93,16 @@ class PolicyConfig(BaseModel):
     abort_if_events: List[str] = Field(default_factory=list)
 
 
+class ConnectorConfig(BaseModel):
+    id: str
+    name: str
+    action_types: List[str] = Field(default_factory=list)
+    webhook_url: str = ""
+    headers: Dict[str, str] = Field(default_factory=dict)
+    transformer: str = "generic_webhook"
+    timeout_seconds: float = 30.0
+
+
 class ApplicationConfig(BaseModel):
     application: ApplicationInfo
     entities: List[EntityConfig] = Field(default_factory=list)
@@ -102,3 +112,4 @@ class ApplicationConfig(BaseModel):
     constraints: Optional[ConstraintsConfig] = None
     policies: List[PolicyConfig] = Field(default_factory=list)
     state_machines: List[StateMachineConfig] = Field(default_factory=list)
+    connectors: List[ConnectorConfig] = Field(default_factory=list)

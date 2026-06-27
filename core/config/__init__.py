@@ -2,12 +2,13 @@
 Domain Configuration
 
 Loads YAML domain configs and registers entity types, state machines,
-event policies, and decision policies with the engine.
+event policies, decision policies, and connectors with the engine.
 """
 
 from .schema import (
     ApplicationConfig,
     ApplicationInfo,
+    ConnectorConfig,
     EntityConfig,
     EventsConfig,
     ObjectivesConfig,
@@ -23,6 +24,7 @@ from .loader import DomainConfigLoader
 __all__ = [
     "ApplicationConfig",
     "ApplicationInfo",
+    "ConnectorConfig",
     "EntityConfig",
     "EventsConfig",
     "ObjectivesConfig",

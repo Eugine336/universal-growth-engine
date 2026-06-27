@@ -3,6 +3,7 @@ from .events import router as events_router
 from .entities import router as entities_router
 from .identities import router as identities_router
 from .decisions import router as decisions_router
+from .webhooks import router as webhooks_router
 
 __all__ = [
     "health_router",
@@ -10,4 +11,5 @@ __all__ = [
     "entities_router",
     "identities_router",
     "decisions_router",
+    "webhooks_router",
 ]
