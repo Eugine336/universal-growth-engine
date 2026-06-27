@@ -4,21 +4,135 @@ application:
   category: fintech_trading
 
 entities:
-  - Trader
-  - Broker
-  - Account
-  - Competition
-  - Portfolio
-  - Trade
+  - type_name: Trader
+    is_person: true
+    required_attributes: [display_name, email]
+    allowed_states: [registered, funded, active, dormant, suspended]
+    initial_state: registered
+
+  - type_name: Broker
+    is_person: true
+    required_attributes: [display_name, license_number]
+    allowed_states: [pending, active, suspended]
+    initial_state: pending
+
+  - type_name: Account
+    required_attributes: [account_type, currency]
+    allowed_states: [pending, active, frozen, closed]
+    initial_state: pending
+
+  - type_name: Competition
+    is_asset: true
+    required_attributes: [title, entry_fee]
+    allowed_states: [upcoming, open, in_progress, completed, cancelled]
+    initial_state: upcoming
+
+  - type_name: Portfolio
+    required_attributes: [owner_id]
+    allowed_states: [active, liquidated]
+    initial_state: active
+
+  - type_name: Trade
+    is_asset: true
+    required_attributes: [instrument, amount]
+    allowed_states: [pending, executed, settled, cancelled]
+    initial_state: pending
 
 events:
-  - ACCOUNT_OPENED
-  - DEPOSIT_MADE
-  - TRADE_EXECUTED
-  - COMPETITION_JOINED
-  - COMPETITION_COMPLETED
-  - WITHDRAWAL_REQUESTED
-  - ACCOUNT_FUNDED
+  allowed:
+    - USER_REGISTERED
+    - SESSION_STARTED
+    - PAGE_VIEWED
+    - FEATURE_USED
+    - SEARCH_EXECUTED
+    - PAYMENT_COMPLETED
+    - PAYMENT_FAILED
+    - KYC_STARTED
+    - KYC_COMPLETED
+    - SUBSCRIPTION_STARTED
+    - SUBSCRIPTION_CANCELLED
+    - REFERRAL_SENT
+    - REFERRAL_CONVERTED
+    - CUSTOM
+  require_actor: true
+
+state_machines:
+  - type_name: Trader
+    initial_state: registered
+    states: [registered, funded, active, dormant, suspended]
+    transitions:
+      - from: registered
+        to: funded
+        trigger_events: [PAYMENT_COMPLETED]
+        label: First deposit
+      - from: funded
+        to: active
+        trigger_events: [CUSTOM]
+        label: First trade executed
+      - from: active
+        to: dormant
+        trigger_events: [SUBSCRIPTION_CANCELLED]
+        label: Trader went dormant
+      - from: dormant
+        to: active
+        trigger_events: [SESSION_STARTED]
+        label: Trader reactivated
+      - from: active
+        to: suspended
+        trigger_events: [ACCOUNT_DEACTIVATED]
+        label: Account suspended
+
+  - type_name: Account
+    initial_state: pending
+    states: [pending, active, frozen, closed]
+    transitions:
+      - from: pending
+        to: active
+        trigger_events: [KYC_COMPLETED]
+        label: KYC approved
+      - from: active
+        to: frozen
+        trigger_events: [ACCOUNT_DEACTIVATED]
+        label: Account frozen
+
+policies:
+  - name: Deposit Nudge
+    description: Encourage registered traders to make their first deposit
+    trigger_events: [SESSION_STARTED]
+    conditions:
+      - field: engagement_tier
+        operator: in
+        value: [cold, warming]
+      - field: conversion_score
+        operator: lt
+        value: 0.4
+    target_engagement_tiers: [cold, warming]
+    action:
+      action_type: SEND_IN_APP
+      priority: 60
+      payload_template:
+        template: first_deposit_nudge
+      valid_hours: 24
+    cooldown_hours: 72
+
+  - name: Competition Invite
+    description: Invite active traders to upcoming competitions
+    conditions:
+      - field: engagement_tier
+        operator: in
+        value: [active, power]
+      - field: churn_score
+        operator: lt
+        value: 0.4
+    target_engagement_tiers: [active, power]
+    action:
+      action_type: SEND_PUSH
+      channel: push
+      priority: 50
+      payload_template:
+        template: competition_invite
+      valid_hours: 72
+    cooldown_hours: 168
 
 objectives:
   primary: increase_funded_accounts

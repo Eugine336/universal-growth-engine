@@ -1,98 +1,75 @@
 """
-FastAPI Application Factory
+UGIE REST API
 
-Creates the UGIE FastAPI app with all routes and the full
-processing pipeline wired to SQL-backed repositories.
+FastAPI application providing HTTP endpoints for the Universal Growth Engine.
+Loads domain configs from UGIE_CONFIG_DIR on startup.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import Any, Dict
 
 from fastapi import FastAPI
 
-from core.storage.database import init_db, get_session
-from core.storage.repositories import (
-    SqlEntityRepository,
-    SqlIdentityGraph,
-    SqlBehaviorRepository,
-)
-from core.events.bus import EventBus
+from core.config.loader import DomainConfigLoader
+from core.decision.policy import PolicyRegistry
+from core.entity.registry import EntityRegistry
+from core.entity.state import EntityStateMachine
 from core.events.validator import EventValidator
-from core.events.enricher import EventEnricher
-from core.events.router import EventRouter
-from core.identity.resolver import IdentityResolver
-from core.behavior.builder import BehaviorBuilder
-from core.prediction.engine import PredictionEngine
-from core.decision.engine import DecisionEngine
-from core.action.orchestrator import ActionOrchestrator
 
 logger = logging.getLogger(__name__)
 
 
-class PipelineState:
-    """Holds all pipeline components as app-level singletons."""
+def _load_domain_configs(app: FastAPI) -> None:
+    config_dir = os.environ.get("UGIE_CONFIG_DIR", "domain/examples")
 
-    def __init__(self):
-        self.event_bus: Optional[EventBus] = None
-        self.entity_repo: Optional[SqlEntityRepository] = None
-        self.identity_graph: Optional[SqlIdentityGraph] = None
-        self.behavior_repo: Optional[SqlBehaviorRepository] = None
-        self.identity_resolver: Optional[IdentityResolver] = None
-        self.behavior_builder: Optional[BehaviorBuilder] = None
-        self.prediction_engine: Optional[PredictionEngine] = None
-        self.decision_engine: Optional[DecisionEngine] = None
-        self.action_orchestrator: Optional[ActionOrchestrator] = None
+    registry = EntityRegistry()
+    state_machine = EntityStateMachine()
+    validator = EventValidator()
+    policy_registry = PolicyRegistry()
 
-
-pipeline = PipelineState()
-
-
-def _init_pipeline(db_url: str = "sqlite:///ugie.db") -> None:
-    engine = init_db(db_url)
-    from sqlalchemy.orm import sessionmaker
-    session_factory = sessionmaker(bind=engine, expire_on_commit=False)
-
-    pipeline.entity_repo = SqlEntityRepository(session_factory)
-    pipeline.identity_graph = SqlIdentityGraph(session_factory)
-    pipeline.behavior_repo = SqlBehaviorRepository(session_factory)
-
-    pipeline.identity_resolver = IdentityResolver(pipeline.identity_graph)
-    pipeline.behavior_builder = BehaviorBuilder()
-    pipeline.prediction_engine = PredictionEngine(pipeline.behavior_repo)
-    pipeline.decision_engine = DecisionEngine(
-        behavior_repo=pipeline.behavior_repo,
-        prediction_engine=pipeline.prediction_engine,
+    loader = DomainConfigLoader(
+        entity_registry=registry,
+        state_machine=state_machine,
+        event_validator=validator,
+        policy_registry=policy_registry,
     )
-    pipeline.action_orchestrator = ActionOrchestrator()
+    loader.load_directory(config_dir)
 
-    pipeline.event_bus = EventBus(
-        validator=EventValidator(),
-        enricher=EventEnricher(),
-        router=EventRouter(),
-    )
-    logger.info("UGIE pipeline initialized")
+    app.state.entity_registry = registry
+    app.state.state_machine = state_machine
+    app.state.event_validator = validator
+    app.state.policy_registry = policy_registry
+    app.state.config_loader = loader
+
+    for app_id in loader.loaded_applications:
+        logger.info(f"Application loaded: {app_id}")
 
 
-def create_app(db_url: str = "sqlite:///ugie.db") -> FastAPI:
-    @asynccontextmanager
-    async def lifespan(app: FastAPI):
-        _init_pipeline(db_url)
-        yield
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logging.basicConfig(level=logging.INFO)
+    logger.info("UGIE starting up")
+    _load_domain_configs(app)
+    yield
+    logger.info("UGIE shutting down")
 
-    app = FastAPI(
-        title="UGIE — Universal Growth Engine",
-        version="0.1.0",
-        lifespan=lifespan,
-    )
 
-    from .routes import health, events, entities, identities, decisions
-    app.include_router(health.router, prefix="/api/v1")
-    app.include_router(events.router, prefix="/api/v1")
-    app.include_router(entities.router, prefix="/api/v1")
-    app.include_router(identities.router, prefix="/api/v1")
-    app.include_router(decisions.router, prefix="/api/v1")
+app = FastAPI(
+    title="Universal Growth Engine",
+    version="0.1.0",
+    description="Event-driven behavioral intelligence engine",
+    lifespan=lifespan,
+)
 
-    return app
+
+@app.get("/api/v1/health")
+async def health() -> Dict[str, Any]:
+    loader: DomainConfigLoader = app.state.config_loader
+    return {
+        "status": "healthy",
+        "loaded_applications": loader.loaded_applications,
+    }
