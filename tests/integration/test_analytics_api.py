@@ -270,7 +270,7 @@ class TestAdminPlatformDetailEndpoint:
         assert resp.status_code == 404
 
     def test_detail(self, client):
-        plat, _ = pipeline.platform_registry.register(
+        plat, _, _ = pipeline.platform_registry.register(
             name="Detail", slug="detail-test", owner_email="d@d.com"
         )
         resp = client.get(f"/api/v1/admin/platforms/{plat.id}")
@@ -289,7 +289,7 @@ class TestAdminPlatformUpdateEndpoint:
         assert resp.status_code == 404
 
     def test_update(self, client):
-        plat, _ = pipeline.platform_registry.register(
+        plat, _, _ = pipeline.platform_registry.register(
             name="Old", slug="update-test", owner_email="u@u.com"
         )
         resp = client.put(

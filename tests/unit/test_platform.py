@@ -77,7 +77,7 @@ class TestPlatformRegistry:
         self.registry = PlatformRegistry()
 
     def test_register_platform(self):
-        platform, raw_key = self.registry.register(
+        platform, raw_key, _ = self.registry.register(
             name="UCMC", slug="ucmc", owner_email="admin@ucmc.io"
         )
         assert platform.name == "UCMC"
@@ -98,7 +98,7 @@ class TestPlatformRegistry:
             self.registry.register(name="A", slug="a", owner_email="a@b.com")
 
     def test_get_by_id(self):
-        platform, _ = self.registry.register(name="P", slug="ppp", owner_email="a@b.com")
+        platform, _, _ = self.registry.register(name="P", slug="ppp", owner_email="a@b.com")
         found = self.registry.get_by_id(platform.id)
         assert found is not None
         assert found.name == "P"
@@ -116,7 +116,7 @@ class TestPlatformRegistry:
         assert self.registry.get_by_slug("nope") is None
 
     def test_get_by_api_key(self):
-        platform, raw_key = self.registry.register(
+        platform, raw_key, _ = self.registry.register(
             name="P", slug="lookup", owner_email="a@b.com"
         )
         found = self.registry.get_by_api_key(raw_key)
@@ -133,15 +133,15 @@ class TestPlatformRegistry:
         assert len(all_p) == 2
 
     def test_list_platforms_by_status(self):
-        p1, _ = self.registry.register(name="A", slug="act", owner_email="a@b.com")
-        p2, _ = self.registry.register(name="B", slug="sus", owner_email="c@d.com")
+        p1, _, _ = self.registry.register(name="A", slug="act", owner_email="a@b.com")
+        p2, _, _ = self.registry.register(name="B", slug="sus", owner_email="c@d.com")
         self.registry.suspend(p2.id)
         active = self.registry.list_platforms(status=PlatformStatus.ACTIVE)
         assert len(active) == 1
         assert active[0].id == p1.id
 
     def test_update_platform(self):
-        platform, _ = self.registry.register(name="Old", slug="upd", owner_email="a@b.com")
+        platform, _, _ = self.registry.register(name="Old", slug="upd", owner_email="a@b.com")
         updated = self.registry.update(platform.id, name="New", owner_email="new@b.com")
         assert updated.name == "New"
         assert updated.owner_email == "new@b.com"
@@ -150,14 +150,14 @@ class TestPlatformRegistry:
         assert self.registry.update("fake", name="X") is None
 
     def test_update_quotas(self):
-        platform, _ = self.registry.register(name="Q", slug="quo", owner_email="a@b.com")
+        platform, _, _ = self.registry.register(name="Q", slug="quo", owner_email="a@b.com")
         new_q = PlatformQuotas(max_events_per_hour=999)
         self.registry.update(platform.id, quotas=new_q)
         found = self.registry.get_by_id(platform.id)
         assert found.quotas.max_events_per_hour == 999
 
     def test_deactivate(self):
-        platform, raw_key = self.registry.register(
+        platform, raw_key, _ = self.registry.register(
             name="D", slug="deact", owner_email="a@b.com"
         )
         self.registry.deactivate(platform.id)
@@ -169,13 +169,13 @@ class TestPlatformRegistry:
         assert self.registry.deactivate("fake") is None
 
     def test_suspend(self):
-        platform, _ = self.registry.register(name="S", slug="susp", owner_email="a@b.com")
+        platform, _, _ = self.registry.register(name="S", slug="susp", owner_email="a@b.com")
         self.registry.suspend(platform.id)
         found = self.registry.get_by_id(platform.id)
         assert found.status == PlatformStatus.SUSPENDED
 
     def test_rotate_api_key(self):
-        platform, old_key = self.registry.register(
+        platform, old_key, _ = self.registry.register(
             name="R", slug="rot", owner_email="a@b.com"
         )
         result = self.registry.rotate_api_key(platform.id)
@@ -190,7 +190,7 @@ class TestPlatformRegistry:
 
     def test_stats(self):
         self.registry.register(name="A", slug="sta", owner_email="a@b.com")
-        p2, _ = self.registry.register(name="B", slug="stb", owner_email="c@d.com")
+        p2, _, _ = self.registry.register(name="B", slug="stb", owner_email="c@d.com")
         self.registry.suspend(p2.id)
         s = self.registry.stats()
         assert s["total_platforms"] == 2
@@ -199,19 +199,19 @@ class TestPlatformRegistry:
 
     def test_register_with_custom_quotas(self):
         q = PlatformQuotas(max_events_per_hour=50)
-        platform, _ = self.registry.register(
+        platform, _, _ = self.registry.register(
             name="CQ", slug="cqq", owner_email="a@b.com", quotas=q
         )
         assert platform.quotas.max_events_per_hour == 50
 
     def test_update_config_yaml(self):
-        platform, _ = self.registry.register(name="C", slug="cfg", owner_email="a@b.com")
+        platform, _, _ = self.registry.register(name="C", slug="cfg", owner_email="a@b.com")
         self.registry.update(platform.id, config_yaml="application:\n  id: test")
         found = self.registry.get_by_id(platform.id)
         assert found.config_yaml == "application:\n  id: test"
 
     def test_update_metadata(self):
-        platform, _ = self.registry.register(name="M", slug="met", owner_email="a@b.com")
+        platform, _, _ = self.registry.register(name="M", slug="met", owner_email="a@b.com")
         self.registry.update(platform.id, metadata={"region": "KE"})
         found = self.registry.get_by_id(platform.id)
         assert found.metadata["region"] == "KE"

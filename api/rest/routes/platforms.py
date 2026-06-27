@@ -21,6 +21,11 @@ class PlatformCreateRequest(BaseModel):
     max_events_per_hour: int = 10000
     max_entities: int = 100000
     max_decisions_per_hour: int = 5000
+    description: str = ""
+    entity_types: Optional[List[str]] = None
+    objectives: Optional[List[str]] = None
+    category_hint: str = ""
+    regions: Optional[List[str]] = None
 
 
 class PlatformUpdateRequest(BaseModel):
@@ -63,17 +68,33 @@ def register_platform(req: PlatformCreateRequest):
         max_decisions_per_hour=req.max_decisions_per_hour,
     )
     try:
-        platform, raw_key = registry.register(
+        platform, raw_key, cold_start_result = registry.register(
             name=req.name,
             slug=req.slug,
             owner_email=req.owner_email,
             quotas=quotas,
+            entity_types=req.entity_types,
+            objectives=req.objectives,
+            category_hint=req.category_hint,
+            description=req.description,
+            regions=req.regions,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     resp = _platform_response(platform)
     resp["api_key"] = raw_key
+    if cold_start_result is not None:
+        resp["cold_start"] = {
+            "category": cold_start_result.category.category_id,
+            "confidence": cold_start_result.category.confidence,
+            "policies_registered": cold_start_result.policies_registered,
+            "stage": cold_start_result.playbook.stage,
+            "activation_bottleneck": cold_start_result.playbook.activation_bottleneck,
+            "first_value_moment": cold_start_result.playbook.first_value_moment,
+            "estimated_cac": cold_start_result.playbook.estimated_cac,
+            "cold_start_window_days": cold_start_result.playbook.cold_start_window_days,
+        }
     return resp
 
 
