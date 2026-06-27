@@ -153,3 +153,39 @@ kpis:
 constraints:
   compliance: [MiFID2, local_financial_regulations]
   regions: [global]
+
+connectors:
+  - id: trading_email
+    name: Trading Email
+    action_types: [SEND_EMAIL]
+    webhook_url: "${EMAIL_WEBHOOK_URL}"
+    headers:
+      Authorization: "Bearer ${EMAIL_API_KEY}"
+    transformer: sendgrid
+    timeout_seconds: 30
+
+  - id: trading_push
+    name: Trading Push Notifications
+    action_types: [SEND_PUSH, SEND_IN_APP]
+    webhook_url: "${PUSH_WEBHOOK_URL}"
+    transformer: generic_webhook
+
+  - id: trading_sms
+    name: Trading SMS
+    action_types: [SEND_SMS]
+    webhook_url: "${SMS_WEBHOOK_URL}"
+    headers:
+      Authorization: "Basic ${TWILIO_AUTH}"
+    transformer: twilio_sms
+
+  - id: trading_workflow
+    name: Trading Internal Workflows
+    action_types:
+      - FLAG_FOR_REVIEW
+      - TRIGGER_REENGAGEMENT
+      - TRIGGER_RETENTION
+      - ESCALATE_SUPPORT
+      - START_WORKFLOW
+      - NO_ACTION
+    webhook_url: "${WORKFLOW_WEBHOOK_URL}"
+    transformer: generic_webhook

@@ -9,67 +9,121 @@ from __future__ import annotations
 
 import logging
 import os
-from contextlib import asynccontextmanager
-from typing import Any, Dict
+from typing import Optional
 
 from fastapi import FastAPI
 
+from core.action.connector import ConnectorRegistry
+from core.action.orchestrator import ActionOrchestrator
+from core.behavior.builder import BehaviorBuilder
+from core.behavior.repository import BehaviorRepository
 from core.config.loader import DomainConfigLoader
+from core.decision.engine import DecisionEngine
 from core.decision.policy import PolicyRegistry
 from core.entity.registry import EntityRegistry
+from core.entity.repository import EntityRepository
 from core.entity.state import EntityStateMachine
+from core.events.bus import EventBus
 from core.events.validator import EventValidator
+from core.identity.graph import IdentityGraph
+from core.identity.resolver import IdentityResolver
+from core.prediction.engine import PredictionEngine
 
 logger = logging.getLogger(__name__)
 
 
-def _load_domain_configs(app: FastAPI) -> None:
+class Pipeline:
+    """Holds all engine components wired together."""
+
+    def __init__(self):
+        self.event_bus: Optional[EventBus] = None
+        self.identity_graph: Optional[IdentityGraph] = None
+        self.identity_resolver: Optional[IdentityResolver] = None
+        self.behavior_builder: Optional[BehaviorBuilder] = None
+        self.behavior_repo: Optional[BehaviorRepository] = None
+        self.prediction_engine: Optional[PredictionEngine] = None
+        self.decision_engine: Optional[DecisionEngine] = None
+        self.action_orchestrator: Optional[ActionOrchestrator] = None
+        self.entity_repo: Optional[EntityRepository] = None
+        self.connector_registry: Optional[ConnectorRegistry] = None
+        self.config_loader: Optional[DomainConfigLoader] = None
+
+
+pipeline = Pipeline()
+
+
+def create_app(db_url: Optional[str] = None) -> FastAPI:
+    logging.basicConfig(level=logging.INFO)
+
     config_dir = os.environ.get("UGIE_CONFIG_DIR", "domain/examples")
 
-    registry = EntityRegistry()
+    entity_registry = EntityRegistry()
     state_machine = EntityStateMachine()
     validator = EventValidator()
     policy_registry = PolicyRegistry()
+    connector_registry = ConnectorRegistry()
 
     loader = DomainConfigLoader(
-        entity_registry=registry,
+        entity_registry=entity_registry,
         state_machine=state_machine,
         event_validator=validator,
         policy_registry=policy_registry,
+        connector_registry=connector_registry,
     )
     loader.load_directory(config_dir)
 
-    app.state.entity_registry = registry
-    app.state.state_machine = state_machine
-    app.state.event_validator = validator
-    app.state.policy_registry = policy_registry
-    app.state.config_loader = loader
+    event_bus = EventBus(validator=validator)
+    identity_graph = IdentityGraph()
+    identity_resolver = IdentityResolver(identity_graph)
+    behavior_builder = BehaviorBuilder()
+    behavior_repo = BehaviorRepository()
+    prediction_engine = PredictionEngine(behavior_repo)
+    decision_engine = DecisionEngine(
+        behavior_repo=behavior_repo,
+        prediction_engine=prediction_engine,
+        policy_registry=policy_registry,
+    )
+    action_orchestrator = ActionOrchestrator(
+        connector_registry=connector_registry,
+    )
+    entity_repo = EntityRepository()
 
-    for app_id in loader.loaded_applications:
-        logger.info(f"Application loaded: {app_id}")
+    pipeline.event_bus = event_bus
+    pipeline.identity_graph = identity_graph
+    pipeline.identity_resolver = identity_resolver
+    pipeline.behavior_builder = behavior_builder
+    pipeline.behavior_repo = behavior_repo
+    pipeline.prediction_engine = prediction_engine
+    pipeline.decision_engine = decision_engine
+    pipeline.action_orchestrator = action_orchestrator
+    pipeline.entity_repo = entity_repo
+    pipeline.connector_registry = connector_registry
+    pipeline.config_loader = loader
 
+    from api.rest.routes import (
+        health_router,
+        events_router,
+        entities_router,
+        identities_router,
+        decisions_router,
+        webhooks_router,
+    )
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    logging.basicConfig(level=logging.INFO)
-    logger.info("UGIE starting up")
-    _load_domain_configs(app)
-    yield
-    logger.info("UGIE shutting down")
+    app = FastAPI(
+        title="Universal Growth Engine",
+        version="0.1.0",
+        description="Event-driven behavioral intelligence engine",
+    )
 
+    app.include_router(health_router, prefix="/api/v1")
+    app.include_router(events_router, prefix="/api/v1")
+    app.include_router(entities_router, prefix="/api/v1")
+    app.include_router(identities_router, prefix="/api/v1")
+    app.include_router(decisions_router, prefix="/api/v1")
+    app.include_router(webhooks_router, prefix="/api/v1")
 
-app = FastAPI(
-    title="Universal Growth Engine",
-    version="0.1.0",
-    description="Event-driven behavioral intelligence engine",
-    lifespan=lifespan,
-)
-
-
-@app.get("/api/v1/health")
-async def health() -> Dict[str, Any]:
-    loader: DomainConfigLoader = app.state.config_loader
-    return {
-        "status": "healthy",
-        "loaded_applications": loader.loaded_applications,
-    }
+    logger.info(
+        f"UGIE app created | apps={loader.loaded_applications} "
+        f"connectors={[c.id for c in connector_registry.list_connectors()]}"
+    )
+    return app

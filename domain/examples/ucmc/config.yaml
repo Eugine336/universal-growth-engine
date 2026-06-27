@@ -157,3 +157,55 @@ constraints:
   regions: [KE, NG, GH, ZA]
   compliance: [GDPR, local_data_laws]
   languages: [en, sw]
+
+connectors:
+  - id: ucmc_email
+    name: UCMC Email
+    action_types: [SEND_EMAIL]
+    webhook_url: "${EMAIL_WEBHOOK_URL}"
+    headers:
+      Authorization: "Bearer ${EMAIL_API_KEY}"
+    transformer: sendgrid
+    timeout_seconds: 30
+
+  - id: ucmc_push
+    name: UCMC Push Notifications
+    action_types: [SEND_PUSH, SEND_IN_APP]
+    webhook_url: "${PUSH_WEBHOOK_URL}"
+    transformer: generic_webhook
+
+  - id: ucmc_sms
+    name: UCMC SMS
+    action_types: [SEND_SMS]
+    webhook_url: "${SMS_WEBHOOK_URL}"
+    headers:
+      Authorization: "Basic ${TWILIO_AUTH}"
+    transformer: twilio_sms
+
+  - id: ucmc_whatsapp
+    name: UCMC WhatsApp
+    action_types: [SEND_WHATSAPP]
+    webhook_url: "${WHATSAPP_WEBHOOK_URL}"
+    transformer: generic_webhook
+
+  - id: ucmc_workflow
+    name: UCMC Internal Workflows
+    action_types:
+      - FLAG_FOR_REVIEW
+      - TRIGGER_REENGAGEMENT
+      - TRIGGER_RETENTION
+      - REQUEST_REVIEW
+      - SHOW_UPSELL
+      - SHOW_RECOMMENDATION
+      - SHOW_DISCOUNT
+      - SHOW_ONBOARDING
+      - UNLOCK_FEATURE
+      - ESCALATE_SUPPORT
+      - START_WORKFLOW
+      - CREATE_DISCOUNT
+      - OFFER_INCENTIVE
+      - NO_ACTION
+      - DELAY
+      - SUPPRESS_AD
+    webhook_url: "${WORKFLOW_WEBHOOK_URL}"
+    transformer: generic_webhook
