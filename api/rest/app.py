@@ -25,6 +25,7 @@ from core.entity.repository import EntityRepository
 from core.entity.state import EntityStateMachine
 from core.events.bus import EventBus
 from core.events.validator import EventValidator
+from core.experimentation.engine import ExperimentationEngine
 from core.identity.graph import IdentityGraph
 from core.identity.resolver import IdentityResolver
 from core.prediction.engine import PredictionEngine
@@ -47,6 +48,7 @@ class Pipeline:
         self.entity_repo: Optional[EntityRepository] = None
         self.connector_registry: Optional[ConnectorRegistry] = None
         self.config_loader: Optional[DomainConfigLoader] = None
+        self.experimentation_engine: Optional[ExperimentationEngine] = None
 
 
 pipeline = Pipeline()
@@ -78,10 +80,12 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     behavior_builder = BehaviorBuilder()
     behavior_repo = BehaviorRepository()
     prediction_engine = PredictionEngine(behavior_repo)
+    experimentation_engine = ExperimentationEngine()
     decision_engine = DecisionEngine(
         behavior_repo=behavior_repo,
         prediction_engine=prediction_engine,
         policy_registry=policy_registry,
+        experimentation_engine=experimentation_engine,
     )
     action_orchestrator = ActionOrchestrator(
         connector_registry=connector_registry,
@@ -99,6 +103,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     pipeline.entity_repo = entity_repo
     pipeline.connector_registry = connector_registry
     pipeline.config_loader = loader
+    pipeline.experimentation_engine = experimentation_engine
 
     from api.rest.routes import (
         health_router,
@@ -107,6 +112,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
         identities_router,
         decisions_router,
         webhooks_router,
+        experiments_router,
     )
 
     app = FastAPI(
@@ -121,6 +127,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     app.include_router(identities_router, prefix="/api/v1")
     app.include_router(decisions_router, prefix="/api/v1")
     app.include_router(webhooks_router, prefix="/api/v1")
+    app.include_router(experiments_router, prefix="/api/v1")
 
     logger.info(
         f"UGIE app created | apps={loader.loaded_applications} "

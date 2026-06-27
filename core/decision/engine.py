@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from core.behavior.repository import BehaviorRepository
 from core.prediction.engine import PredictionEngine
@@ -29,6 +29,9 @@ from core.prediction.schema import PredictionType
 from .schema import Decision, DecisionStatus
 from .policy import Policy, PolicyRegistry
 from .evaluator import PolicyEvaluator
+
+if TYPE_CHECKING:
+    from core.experimentation.engine import ExperimentationEngine
 
 logger = logging.getLogger(__name__)
 
@@ -56,11 +59,13 @@ class DecisionEngine:
         behavior_repo: BehaviorRepository,
         prediction_engine: PredictionEngine,
         policy_registry: Optional[PolicyRegistry] = None,
+        experimentation_engine: Optional["ExperimentationEngine"] = None,
     ):
         self._behavior_repo = behavior_repo
         self._prediction_engine = prediction_engine
         self._registry = policy_registry or PolicyRegistry()
         self._evaluator = PolicyEvaluator(self._registry)
+        self._experimentation = experimentation_engine
 
         # Decision history: identity_id → list of Decisions
         self._history: Dict[str, List[Decision]] = defaultdict(list)
@@ -128,7 +133,13 @@ class DecisionEngine:
             trigger_event_id=trigger_event_id,
         )
 
-        # 5. Store decisions in history
+        # 5. Apply experiment overrides (if any)
+        if self._experimentation:
+            decisions = self._apply_experiments(
+                decisions, profile, identity_id, application_id,
+            )
+
+        # 6. Store decisions in history
         for decision in decisions:
             self._history[identity_id].append(decision)
             self._total_decided += 1
@@ -186,6 +197,36 @@ class DecisionEngine:
             f"with_action={sum(1 for d in results.values() if d)}"
         )
         return results
+
+    # ------------------------------------------------------------------
+    # Experimentation
+    # ------------------------------------------------------------------
+
+    def _apply_experiments(
+        self,
+        decisions: List[Decision],
+        profile,
+        identity_id: str,
+        application_id: str,
+    ) -> List[Decision]:
+        for decision in decisions:
+            policy_id = decision.context.policy_id
+            if not policy_id:
+                continue
+            experiment = self._experimentation.get_active_for_policy(
+                policy_id, application_id,
+            )
+            if not experiment:
+                continue
+            if not self._experimentation.matches_targeting(
+                experiment,
+                profile.rfm.segment,
+                profile.engagement.tier,
+            ):
+                continue
+            assignment = self._experimentation.assign(experiment, identity_id)
+            self._experimentation.apply_variant(decision, assignment, experiment)
+        return decisions
 
     # ------------------------------------------------------------------
     # History
