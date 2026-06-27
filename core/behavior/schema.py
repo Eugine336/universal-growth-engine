@@ -29,6 +29,7 @@ class EngagementProfile(BaseModel):
     sessions_last_30d: int = 0
     avg_session_duration_seconds: float = 0.0
     last_session_at: Optional[datetime] = None
+    session_timestamps: List[datetime] = Field(default_factory=list)
 
     # Page / feature depth
     total_events: int = 0

@@ -259,6 +259,57 @@ class TestBehaviorBuilder:
         assert signal is not None
         assert signal.strength == 0.7
 
+    def test_session_window_counts_decay_over_time(self):
+        p = make_profile()
+        now = datetime.now(timezone.utc)
+        for i in range(5):
+            old_event = make_event(
+                EventType.SESSION_STARTED,
+                timestamp=now - timedelta(days=60 - i),
+            )
+            self.builder.apply(old_event, p)
+        recent_event = make_event(
+            EventType.SESSION_STARTED,
+            timestamp=now,
+        )
+        self.builder.apply(recent_event, p)
+        assert p.engagement.total_sessions == 6
+        assert p.engagement.sessions_last_7d == 1
+        assert p.engagement.sessions_last_30d == 1
+
+    def test_session_window_7d_only_counts_recent(self):
+        p = make_profile()
+        now = datetime.now(timezone.utc)
+        for i in range(2):
+            self.builder.apply(
+                make_event(EventType.SESSION_STARTED, timestamp=now - timedelta(days=20 + i)),
+                p,
+            )
+        for i in range(3):
+            self.builder.apply(
+                make_event(EventType.SESSION_STARTED, timestamp=now - timedelta(days=i)),
+                p,
+            )
+        assert p.engagement.total_sessions == 5
+        assert p.engagement.sessions_last_7d == 3
+        assert p.engagement.sessions_last_30d == 5
+
+    def test_engagement_tier_reflects_recent_sessions(self):
+        p = make_profile()
+        now = datetime.now(timezone.utc)
+        for i in range(10):
+            self.builder.apply(
+                make_event(EventType.SESSION_STARTED, timestamp=now - timedelta(days=60 - i)),
+                p,
+            )
+        self.builder.apply(
+            make_event(EventType.SESSION_STARTED, timestamp=now),
+            p,
+        )
+        assert p.engagement.total_sessions == 11
+        assert p.engagement.sessions_last_7d == 1
+        assert p.engagement.tier == "warming"
+
 
 # ===========================================================================
 # BehaviorRepository Tests

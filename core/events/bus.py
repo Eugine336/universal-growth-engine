@@ -32,6 +32,7 @@ class ProcessingResult:
     success: bool
     validation: Optional[ValidationResult] = None
     delivered_to: int = 0
+    delivery_errors: int = 0
     errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
     processed_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -41,6 +42,7 @@ class ProcessingResult:
             "event_id": self.event_id,
             "success": self.success,
             "delivered_to": self.delivered_to,
+            "delivery_errors": self.delivery_errors,
             "errors": self.errors,
             "warnings": self.warnings,
             "processed_at": self.processed_at.isoformat(),
@@ -169,8 +171,15 @@ class EventBus:
             # Non-fatal — continue to routing
 
         # 3. Route
+        errors_before_routing = len(event.processing_errors)
         delivered = self._router.route(event)
         result.delivered_to = delivered
+
+        # Surface routing errors
+        routing_errors = event.processing_errors[errors_before_routing:]
+        if routing_errors:
+            result.delivery_errors = len(routing_errors)
+            result.warnings.extend(routing_errors)
 
         # 4. Mark processed
         event.mark_processed()

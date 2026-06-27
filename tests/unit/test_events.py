@@ -370,6 +370,28 @@ class TestEventBus:
         assert "_ugie" in enriched_events[0].properties
         assert enriched_events[0].properties["_ugie"]["is_conversion"] is True
 
+    def test_handler_failure_surfaces_delivery_errors(self):
+        def bad_handler(event):
+            raise RuntimeError("handler exploded")
+
+        self.bus.subscribe(consumer_id="bad", handler=bad_handler)
+        result = self.bus.submit(make_event())
+        assert result.success is True
+        assert result.delivery_errors > 0
+        assert any("handler exploded" in w for w in result.warnings)
+
+    def test_partial_delivery_counts_correctly(self):
+        def bad_handler(event):
+            raise RuntimeError("fail")
+
+        self.bus.subscribe(consumer_id="bad", handler=bad_handler)
+        self.bus.subscribe(consumer_id="good", handler=self._handler)
+        result = self.bus.submit(make_event())
+        assert result.success is True
+        assert result.delivered_to == 1
+        assert result.delivery_errors == 1
+        assert len(self.received) == 1
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

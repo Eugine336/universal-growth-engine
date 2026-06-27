@@ -266,6 +266,34 @@ class TestIdentityMerger:
         assert "ucmc" in result.canonical.entity_ids
         assert "trading" in result.canonical.entity_ids
 
+    def test_touchpoint_index_points_to_canonical_after_merge(self):
+        a = self._save(email_tp("canonical@test.com"))
+        b = self._save(email_tp("absorbed@test.com"))
+        result = self.merger.merge(a.id, b.id)
+        canonical = result.canonical
+        found = self.graph.find_by_touchpoint_key("email:absorbed@test.com")
+        assert found is not None
+        assert found.id == canonical.id
+        assert not found.is_merged()
+
+    def test_resolve_after_merge_returns_canonical_not_duplicate(self):
+        resolver = IdentityResolver(self.graph)
+        r1 = resolver.resolve(
+            application_id="ucmc",
+            touchpoints=[email_tp("shared@test.com")],
+        )
+        r2 = resolver.resolve(
+            application_id="ucmc",
+            touchpoints=[device_tp("device_merge_test")],
+        )
+        self.merger.merge(r1.identity.id, r2.identity.id)
+        r3 = resolver.resolve(
+            application_id="ucmc",
+            touchpoints=[device_tp("device_merge_test")],
+        )
+        assert r3.created is False
+        assert not r3.identity.is_merged()
+
 
 # ===========================================================================
 # Identity Resolver Tests
