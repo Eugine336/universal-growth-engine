@@ -15,6 +15,8 @@ from fastapi import FastAPI
 
 from core.action.connector import ConnectorRegistry
 from core.action.orchestrator import ActionOrchestrator
+from core.audience.engine import AudienceEngine
+from core.audience.exporter import AudienceExporter
 from core.behavior.builder import BehaviorBuilder
 from core.behavior.repository import BehaviorRepository
 from core.config.loader import DomainConfigLoader
@@ -49,6 +51,8 @@ class Pipeline:
         self.connector_registry: Optional[ConnectorRegistry] = None
         self.config_loader: Optional[DomainConfigLoader] = None
         self.experimentation_engine: Optional[ExperimentationEngine] = None
+        self.audience_engine: Optional[AudienceEngine] = None
+        self.audience_exporter: Optional[AudienceExporter] = None
 
 
 pipeline = Pipeline()
@@ -92,6 +96,19 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     )
     entity_repo = EntityRepository()
 
+    audience_engine = AudienceEngine(behavior_repo)
+    audience_exporter = AudienceExporter(audience_engine, behavior_repo)
+
+    from connectors.meta.connector import MetaAdsConnector
+    from connectors.google.connector import GoogleAdsConnector
+    from connectors.tiktok.connector import TikTokAdsConnector
+    from connectors.linkedin.connector import LinkedInAdsConnector
+
+    connector_registry.register(MetaAdsConnector())
+    connector_registry.register(GoogleAdsConnector())
+    connector_registry.register(TikTokAdsConnector())
+    connector_registry.register(LinkedInAdsConnector())
+
     pipeline.event_bus = event_bus
     pipeline.identity_graph = identity_graph
     pipeline.identity_resolver = identity_resolver
@@ -104,6 +121,8 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     pipeline.connector_registry = connector_registry
     pipeline.config_loader = loader
     pipeline.experimentation_engine = experimentation_engine
+    pipeline.audience_engine = audience_engine
+    pipeline.audience_exporter = audience_exporter
 
     from api.rest.routes import (
         health_router,
@@ -113,6 +132,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
         decisions_router,
         webhooks_router,
         experiments_router,
+        audiences_router,
     )
 
     app = FastAPI(
@@ -128,6 +148,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     app.include_router(decisions_router, prefix="/api/v1")
     app.include_router(webhooks_router, prefix="/api/v1")
     app.include_router(experiments_router, prefix="/api/v1")
+    app.include_router(audiences_router, prefix="/api/v1")
 
     logger.info(
         f"UGIE app created | apps={loader.loaded_applications} "
