@@ -35,6 +35,7 @@ from core.ingest.sources.shopify import ShopifyTransformer
 from core.ingest.sources.stripe import StripeTransformer
 from core.platform.registry import PlatformRegistry
 from core.prediction.engine import PredictionEngine
+from core.referral.engine import ReferralEngine
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,7 @@ class Pipeline:
         self.experimentation_engine: Optional[ExperimentationEngine] = None
         self.platform_registry: Optional[PlatformRegistry] = None
         self.ingest_registry: Optional[InboundTransformerRegistry] = None
+        self.referral_engine: Optional[ReferralEngine] = None
 
 
 pipeline = Pipeline()
@@ -72,6 +74,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     validator = EventValidator()
     policy_registry = PolicyRegistry()
     connector_registry = ConnectorRegistry()
+    referral_engine = ReferralEngine()
 
     loader = DomainConfigLoader(
         entity_registry=entity_registry,
@@ -79,6 +82,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
         event_validator=validator,
         policy_registry=policy_registry,
         connector_registry=connector_registry,
+        referral_engine=referral_engine,
     )
     loader.load_directory(config_dir)
 
@@ -122,6 +126,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     pipeline.experimentation_engine = experimentation_engine
     pipeline.platform_registry = platform_registry
     pipeline.ingest_registry = ingest_registry
+    pipeline.referral_engine = referral_engine
 
     from api.rest.routes import (
         health_router,
@@ -133,6 +138,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
         experiments_router,
         platforms_router,
         ingest_router,
+        referrals_router,
     )
 
     app = FastAPI(
@@ -150,6 +156,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     app.include_router(experiments_router, prefix="/api/v1")
     app.include_router(platforms_router, prefix="/api/v1")
     app.include_router(ingest_router, prefix="/api/v1")
+    app.include_router(referrals_router, prefix="/api/v1")
 
     logger.info(
         f"UGIE app created | apps={loader.loaded_applications} "

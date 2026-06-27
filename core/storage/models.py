@@ -192,3 +192,63 @@ class ActionModel(Base):
     updated_at = Column(DateTime, default=_utcnow)
     dispatched_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
+
+
+class ReferralProgramModel(Base):
+    __tablename__ = "referral_programs"
+
+    id = Column(String, primary_key=True)
+    platform_id = Column(String, nullable=False, index=True)
+    name = Column(String, nullable=False)
+    status = Column(String, default="active")
+    referrer_reward_type = Column(String, default="credit")
+    referrer_reward_value = Column(Float, default=0.0)
+    referee_reward_type = Column(String, default="credit")
+    referee_reward_value = Column(Float, default=0.0)
+    reward_currency = Column(String, nullable=True)
+    qualification_event = Column(String, default="USER_REGISTERED")
+    double_sided = Column(Boolean, default=True)
+    max_referrals_per_user = Column(Integer, default=0)
+    code_expiry_days = Column(Integer, default=90)
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow)
+
+
+class ReferralCodeModel(Base):
+    __tablename__ = "referral_codes"
+
+    id = Column(String, primary_key=True)
+    platform_id = Column(String, nullable=False, index=True)
+    referrer_identity_id = Column(String, nullable=False, index=True)
+    referrer_entity_id = Column(String, nullable=True)
+    code = Column(String, nullable=False, index=True)
+    status = Column(String, default="active")
+    reward_type = Column(String, default="credit")
+    reward_value = Column(Float, default=0.0)
+    reward_currency = Column(String, nullable=True)
+    max_uses = Column(Integer, default=0)
+    current_uses = Column(Integer, default=0)
+    expires_at = Column(DateTime, nullable=True)
+    metadata_ = Column("metadata", Text, default="{}")
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow)
+
+
+class ReferralModel(Base):
+    __tablename__ = "referrals"
+
+    id = Column(String, primary_key=True)
+    platform_id = Column(String, nullable=False, index=True)
+    referral_code_id = Column(String, nullable=False, index=True)
+    referrer_identity_id = Column(String, nullable=False, index=True)
+    referee_identity_id = Column(String, nullable=False, index=True)
+    referee_entity_id = Column(String, nullable=True)
+    status = Column(String, default="pending")
+    qualification_event = Column(String, nullable=True)
+    referrer_reward = Column(Text, nullable=True)
+    referee_reward = Column(Text, nullable=True)
+    attributed_at = Column(DateTime, nullable=True)
+    qualified_at = Column(DateTime, nullable=True)
+    rewarded_at = Column(DateTime, nullable=True)
+    metadata_ = Column("metadata", Text, default="{}")
+    created_at = Column(DateTime, default=_utcnow)
