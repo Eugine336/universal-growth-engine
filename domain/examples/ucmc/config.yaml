@@ -4,23 +4,138 @@ application:
   category: b2b_marketplace
 
 entities:
-  - Buyer
-  - Seller
-  - Service
-  - AIAgent
-  - Organization
-  - Escrow
+  - type_name: Buyer
+    is_person: true
+    required_attributes: [display_name, email]
+    allowed_states: [registered, active, churned, suspended]
+    initial_state: registered
+
+  - type_name: Seller
+    is_person: true
+    required_attributes: [display_name, category]
+    allowed_states: [onboarding, profile_complete, kyc_pending, active, suspended]
+    initial_state: onboarding
+
+  - type_name: Service
+    is_asset: true
+    required_attributes: [title, category, price]
+    allowed_states: [draft, published, sold, archived]
+    initial_state: draft
+
+  - type_name: AIAgent
+    required_attributes: [agent_type]
+    allowed_states: [idle, active, disabled]
+    initial_state: idle
+
+  - type_name: Organization
+    required_attributes: [name]
+    allowed_states: [active, inactive, suspended]
+    initial_state: active
+
+  - type_name: Escrow
+    is_asset: true
+    required_attributes: [amount, currency]
+    allowed_states: [created, funded, released, disputed, refunded]
+    initial_state: created
 
 events:
-  - SERVICE_VIEWED
-  - PROPOSAL_SENT
-  - ESCROW_CREATED
-  - KYC_COMPLETED
-  - DISPUTE_OPENED
-  - PAYMENT_RELEASED
-  - REVIEW_CREATED
-  - MESSAGE_SENT
-  - OFFER_ACCEPTED
+  allowed:
+    - USER_REGISTERED
+    - SESSION_STARTED
+    - PAGE_VIEWED
+    - FEATURE_USED
+    - SEARCH_EXECUTED
+    - ITEM_VIEWED
+    - ITEM_SAVED
+    - MESSAGE_SENT
+    - OFFER_MADE
+    - OFFER_ACCEPTED
+    - PAYMENT_COMPLETED
+    - ORDER_COMPLETED
+    - REVIEW_CREATED
+    - DISPUTE_OPENED
+    - KYC_STARTED
+    - KYC_COMPLETED
+    - REFERRAL_SENT
+    - CUSTOM
+  require_actor: true
+
+state_machines:
+  - type_name: Seller
+    initial_state: onboarding
+    states: [onboarding, profile_complete, kyc_pending, active, suspended]
+    transitions:
+      - from: onboarding
+        to: profile_complete
+        trigger_events: [ENTITY_UPDATED]
+        label: Profile completed
+      - from: profile_complete
+        to: kyc_pending
+        trigger_events: [KYC_STARTED]
+        label: KYC submitted
+      - from: kyc_pending
+        to: active
+        trigger_events: [KYC_COMPLETED]
+        label: KYC verified
+      - from: active
+        to: suspended
+        trigger_events: [ACCOUNT_DEACTIVATED]
+        label: Account suspended
+
+  - type_name: Escrow
+    initial_state: created
+    states: [created, funded, released, disputed, refunded]
+    transitions:
+      - from: created
+        to: funded
+        trigger_events: [PAYMENT_COMPLETED]
+        label: Escrow funded
+      - from: funded
+        to: released
+        trigger_events: [ORDER_COMPLETED]
+        label: Payment released
+      - from: funded
+        to: disputed
+        trigger_events: [DISPUTE_OPENED]
+        label: Dispute opened
+
+policies:
+  - name: Seller Activation Nudge
+    description: Nudge onboarding sellers to complete their profile
+    trigger_events: [SESSION_STARTED]
+    conditions:
+      - field: engagement_tier
+        operator: in
+        value: [cold, warming]
+      - field: churn_score
+        operator: lt
+        value: 0.5
+    target_engagement_tiers: [cold, warming]
+    action:
+      action_type: SEND_IN_APP
+      priority: 55
+      payload_template:
+        template: seller_activation_nudge
+      valid_hours: 24
+    cooldown_hours: 48
+
+  - name: Buyer Retention Offer
+    description: Offer discount to buyers at risk of churning
+    conditions:
+      - field: churn_score
+        operator: gte
+        value: 0.6
+      - field: conversion_score
+        operator: gte
+        value: 0.3
+    action:
+      action_type: SHOW_DISCOUNT
+      priority: 65
+      payload_template:
+        template: buyer_retention_discount
+        discount_percent: 10
+      valid_hours: 48
+    cooldown_hours: 168
 
 objectives:
   primary: increase_successful_transactions

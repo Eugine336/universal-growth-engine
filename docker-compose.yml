@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ugie-data:/app/data
+      - ./domain:/app/domain
+    environment:
+      - UGIE_DB_URL=sqlite:///data/ugie.db
+      - UGIE_CONFIG_DIR=domain/examples
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  ugie-data:
