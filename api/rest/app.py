@@ -28,6 +28,11 @@ from core.events.validator import EventValidator
 from core.experimentation.engine import ExperimentationEngine
 from core.identity.graph import IdentityGraph
 from core.identity.resolver import IdentityResolver
+from core.ingest.transformer import InboundTransformerRegistry
+from core.ingest.sources.generic import GenericTransformer
+from core.ingest.sources.paystack import PaystackTransformer
+from core.ingest.sources.shopify import ShopifyTransformer
+from core.ingest.sources.stripe import StripeTransformer
 from core.platform.registry import PlatformRegistry
 from core.prediction.engine import PredictionEngine
 
@@ -51,6 +56,7 @@ class Pipeline:
         self.config_loader: Optional[DomainConfigLoader] = None
         self.experimentation_engine: Optional[ExperimentationEngine] = None
         self.platform_registry: Optional[PlatformRegistry] = None
+        self.ingest_registry: Optional[InboundTransformerRegistry] = None
 
 
 pipeline = Pipeline()
@@ -96,6 +102,12 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
 
     platform_registry = PlatformRegistry()
 
+    ingest_registry = InboundTransformerRegistry()
+    ingest_registry.register(StripeTransformer())
+    ingest_registry.register(PaystackTransformer())
+    ingest_registry.register(ShopifyTransformer())
+    ingest_registry.register(GenericTransformer())
+
     pipeline.event_bus = event_bus
     pipeline.identity_graph = identity_graph
     pipeline.identity_resolver = identity_resolver
@@ -109,6 +121,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     pipeline.config_loader = loader
     pipeline.experimentation_engine = experimentation_engine
     pipeline.platform_registry = platform_registry
+    pipeline.ingest_registry = ingest_registry
 
     from api.rest.routes import (
         health_router,
@@ -119,6 +132,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
         webhooks_router,
         experiments_router,
         platforms_router,
+        ingest_router,
     )
 
     app = FastAPI(
@@ -135,6 +149,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     app.include_router(webhooks_router, prefix="/api/v1")
     app.include_router(experiments_router, prefix="/api/v1")
     app.include_router(platforms_router, prefix="/api/v1")
+    app.include_router(ingest_router, prefix="/api/v1")
 
     logger.info(
         f"UGIE app created | apps={loader.loaded_applications} "
