@@ -30,7 +30,14 @@ from core.events.validator import EventValidator
 from core.experimentation.engine import ExperimentationEngine
 from core.identity.graph import IdentityGraph
 from core.identity.resolver import IdentityResolver
+from core.ingest.transformer import InboundTransformerRegistry
+from core.ingest.sources.generic import GenericTransformer
+from core.ingest.sources.paystack import PaystackTransformer
+from core.ingest.sources.shopify import ShopifyTransformer
+from core.ingest.sources.stripe import StripeTransformer
+from core.platform.registry import PlatformRegistry
 from core.prediction.engine import PredictionEngine
+from core.referral.engine import ReferralEngine
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +60,9 @@ class Pipeline:
         self.experimentation_engine: Optional[ExperimentationEngine] = None
         self.audience_engine: Optional[AudienceEngine] = None
         self.audience_exporter: Optional[AudienceExporter] = None
+        self.platform_registry: Optional[PlatformRegistry] = None
+        self.ingest_registry: Optional[InboundTransformerRegistry] = None
+        self.referral_engine: Optional[ReferralEngine] = None
 
 
 pipeline = Pipeline()
@@ -68,6 +78,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     validator = EventValidator()
     policy_registry = PolicyRegistry()
     connector_registry = ConnectorRegistry()
+    referral_engine = ReferralEngine()
 
     loader = DomainConfigLoader(
         entity_registry=entity_registry,
@@ -75,6 +86,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
         event_validator=validator,
         policy_registry=policy_registry,
         connector_registry=connector_registry,
+        referral_engine=referral_engine,
     )
     loader.load_directory(config_dir)
 
@@ -108,6 +120,13 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     connector_registry.register(GoogleAdsConnector())
     connector_registry.register(TikTokAdsConnector())
     connector_registry.register(LinkedInAdsConnector())
+    platform_registry = PlatformRegistry()
+
+    ingest_registry = InboundTransformerRegistry()
+    ingest_registry.register(StripeTransformer())
+    ingest_registry.register(PaystackTransformer())
+    ingest_registry.register(ShopifyTransformer())
+    ingest_registry.register(GenericTransformer())
 
     pipeline.event_bus = event_bus
     pipeline.identity_graph = identity_graph
@@ -123,6 +142,9 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     pipeline.experimentation_engine = experimentation_engine
     pipeline.audience_engine = audience_engine
     pipeline.audience_exporter = audience_exporter
+    pipeline.platform_registry = platform_registry
+    pipeline.ingest_registry = ingest_registry
+    pipeline.referral_engine = referral_engine
 
     from api.rest.routes import (
         health_router,
@@ -133,6 +155,9 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
         webhooks_router,
         experiments_router,
         audiences_router,
+        platforms_router,
+        ingest_router,
+        referrals_router,
     )
 
     app = FastAPI(
@@ -149,6 +174,9 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     app.include_router(webhooks_router, prefix="/api/v1")
     app.include_router(experiments_router, prefix="/api/v1")
     app.include_router(audiences_router, prefix="/api/v1")
+    app.include_router(platforms_router, prefix="/api/v1")
+    app.include_router(ingest_router, prefix="/api/v1")
+    app.include_router(referrals_router, prefix="/api/v1")
 
     logger.info(
         f"UGIE app created | apps={loader.loaded_applications} "

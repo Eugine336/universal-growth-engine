@@ -10,9 +10,12 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 import yaml
+
+if TYPE_CHECKING:
+    from core.referral.engine import ReferralEngine
 
 from core.action.connector import ConnectorRegistry
 from core.decision.policy import (
@@ -60,12 +63,14 @@ class DomainConfigLoader:
         event_validator: EventValidator,
         policy_registry: PolicyRegistry,
         connector_registry: Optional[ConnectorRegistry] = None,
+        referral_engine: Optional["ReferralEngine"] = None,
     ):
         self._entity_registry = entity_registry
         self._state_machine = state_machine
         self._event_validator = event_validator
         self._policy_registry = policy_registry
         self._connector_registry = connector_registry
+        self._referral_engine = referral_engine
         self._loaded_apps: List[str] = []
 
     @property
@@ -100,6 +105,7 @@ class DomainConfigLoader:
         self._register_event_policy(config)
         self._register_policies(config)
         self._register_connectors(config)
+        self._register_referral_program(config)
 
         self._loaded_apps.append(app_id)
         logger.info(
@@ -248,3 +254,34 @@ class DomainConfigLoader:
                 timeout_seconds=c_cfg.timeout_seconds,
             )
             self._connector_registry.register(connector)
+
+    def _register_referral_program(self, config: ApplicationConfig) -> None:
+        if not self._referral_engine or not config.referral_program:
+            return
+        from core.referral.schema import RewardType
+
+        rp = config.referral_program
+        app_id = config.application.id
+        try:
+            referrer_rt = RewardType(rp.referrer_reward_type)
+            referee_rt = RewardType(rp.referee_reward_type)
+        except ValueError as e:
+            logger.warning(
+                f"Invalid reward type in referral program for app '{app_id}': {e}"
+            )
+            return
+
+        self._referral_engine.create_program(
+            platform_id=app_id,
+            name=rp.name,
+            referrer_reward_type=referrer_rt,
+            referrer_reward_value=rp.referrer_reward_value,
+            referee_reward_type=referee_rt,
+            referee_reward_value=rp.referee_reward_value,
+            reward_currency=rp.reward_currency,
+            qualification_event=rp.qualification_event,
+            double_sided=rp.double_sided,
+            max_referrals_per_user=rp.max_referrals_per_user,
+            code_expiry_days=rp.code_expiry_days,
+        )
+        logger.info(f"Registered referral program '{rp.name}' for app '{app_id}'")

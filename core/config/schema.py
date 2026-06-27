@@ -103,6 +103,19 @@ class ConnectorConfig(BaseModel):
     timeout_seconds: float = 30.0
 
 
+class ReferralProgramConfig(BaseModel):
+    name: str
+    referrer_reward_type: str = "credit"
+    referrer_reward_value: float = 0.0
+    referee_reward_type: str = "credit"
+    referee_reward_value: float = 0.0
+    reward_currency: Optional[str] = None
+    qualification_event: str = "USER_REGISTERED"
+    double_sided: bool = True
+    max_referrals_per_user: int = 0
+    code_expiry_days: int = 90
+
+
 class ApplicationConfig(BaseModel):
     application: ApplicationInfo
     entities: List[EntityConfig] = Field(default_factory=list)
@@ -113,3 +126,4 @@ class ApplicationConfig(BaseModel):
     policies: List[PolicyConfig] = Field(default_factory=list)
     state_machines: List[StateMachineConfig] = Field(default_factory=list)
     connectors: List[ConnectorConfig] = Field(default_factory=list)
+    referral_program: Optional[ReferralProgramConfig] = None

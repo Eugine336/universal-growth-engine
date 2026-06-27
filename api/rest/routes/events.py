@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from core.events.schema import Event, EventType, EventSource, EventContext, DeviceContext, GeoContext
+from core.platform.schema import Platform
 from api.rest.app import pipeline
+from api.rest.middleware import get_current_platform
 
 router = APIRouter(tags=["events"])
 
@@ -86,15 +88,25 @@ def _process_event(event: Event) -> Dict[str, Any]:
 
 
 @router.post("/events")
-def submit_event(req: EventRequest):
+def submit_event(
+    req: EventRequest,
+    platform: Optional[Platform] = Depends(get_current_platform),
+):
+    if platform:
+        req.application_id = platform.id
     event = _build_event(req)
     return _process_event(event)
 
 
 @router.post("/events/batch")
-def submit_batch(events: List[EventRequest]):
+def submit_batch(
+    events: List[EventRequest],
+    platform: Optional[Platform] = Depends(get_current_platform),
+):
     results = []
     for req in events:
+        if platform:
+            req.application_id = platform.id
         event = _build_event(req)
         results.append(_process_event(event))
     return results
