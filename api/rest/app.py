@@ -36,7 +36,9 @@ from core.ingest.sources.generic import GenericTransformer
 from core.ingest.sources.paystack import PaystackTransformer
 from core.ingest.sources.shopify import ShopifyTransformer
 from core.ingest.sources.stripe import StripeTransformer
+from core.acquisition.engine import AcquisitionEngine
 from core.budget.engine import BudgetAllocator
+from core.cold_start.engine import ColdStartEngine
 from core.platform.registry import PlatformRegistry
 from core.prediction.engine import PredictionEngine
 from core.referral.engine import ReferralEngine
@@ -67,6 +69,8 @@ class Pipeline:
         self.referral_engine: Optional[ReferralEngine] = None
         self.cross_platform_manager: Optional[CrossPlatformManager] = None
         self.budget_allocator: Optional[BudgetAllocator] = None
+        self.cold_start_engine: Optional[ColdStartEngine] = None
+        self.acquisition_engine: Optional[AcquisitionEngine] = None
 
 
 pipeline = Pipeline()
@@ -125,7 +129,17 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     connector_registry.register(GoogleAdsConnector())
     connector_registry.register(TikTokAdsConnector())
     connector_registry.register(LinkedInAdsConnector())
-    platform_registry = PlatformRegistry()
+
+    budget_allocator = BudgetAllocator()
+    acquisition_engine = AcquisitionEngine(
+        behavior_repo=behavior_repo,
+        budget_allocator=budget_allocator,
+    )
+    cold_start_engine = ColdStartEngine(
+        policy_registry=policy_registry,
+        acquisition_engine=acquisition_engine,
+    )
+    platform_registry = PlatformRegistry(cold_start_engine=cold_start_engine)
 
     ingest_registry = InboundTransformerRegistry()
     ingest_registry.register(StripeTransformer())
@@ -151,7 +165,9 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     pipeline.ingest_registry = ingest_registry
     pipeline.referral_engine = referral_engine
     pipeline.cross_platform_manager = cross_platform_manager
-    pipeline.budget_allocator = BudgetAllocator()
+    pipeline.budget_allocator = budget_allocator
+    pipeline.cold_start_engine = cold_start_engine
+    pipeline.acquisition_engine = acquisition_engine
 
     from api.rest.routes import (
         health_router,
@@ -169,6 +185,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
         analytics_router,
         admin_router,
         budget_router,
+        cold_start_router,
     )
 
     app = FastAPI(
@@ -192,6 +209,7 @@ def create_app(db_url: Optional[str] = None) -> FastAPI:
     app.include_router(analytics_router, prefix="/api/v1")
     app.include_router(admin_router, prefix="/api/v1")
     app.include_router(budget_router, prefix="/api/v1")
+    app.include_router(cold_start_router, prefix="/api/v1")
 
     logger.info(
         f"UGIE app created | apps={loader.loaded_applications} "

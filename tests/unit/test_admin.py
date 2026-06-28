@@ -90,7 +90,7 @@ class TestPlatformDetail:
 
     def test_returns_detail(self, manager):
         mgr, pipe = manager
-        plat, _ = pipe.platform_registry.register(
+        plat, _, _ = pipe.platform_registry.register(
             name="Detail", slug="detail", owner_email="d@d.com"
         )
         result = mgr.get_platform_detail(plat.id)
@@ -102,7 +102,7 @@ class TestPlatformDetail:
 
     def test_includes_profile_count(self, manager):
         mgr, pipe = manager
-        plat, _ = pipe.platform_registry.register(
+        plat, _, _ = pipe.platform_registry.register(
             name="Counted", slug="counted", owner_email="c@c.com"
         )
         p1 = BehavioralProfile(identity_id="u1", application_id=plat.id)
@@ -120,7 +120,7 @@ class TestUpdatePlatformConfig:
 
     def test_update_name(self, manager):
         mgr, pipe = manager
-        plat, _ = pipe.platform_registry.register(
+        plat, _, _ = pipe.platform_registry.register(
             name="Old Name", slug="rename", owner_email="r@r.com"
         )
         updates = PlatformConfigUpdate(name="New Name")
@@ -130,7 +130,7 @@ class TestUpdatePlatformConfig:
 
     def test_update_metadata(self, manager):
         mgr, pipe = manager
-        plat, _ = pipe.platform_registry.register(
+        plat, _, _ = pipe.platform_registry.register(
             name="Meta", slug="meta-test", owner_email="m@m.com"
         )
         updates = PlatformConfigUpdate(metadata={"region": "KE"})

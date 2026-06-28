@@ -26,10 +26,11 @@ _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,62}[a-z0-9]$")
 
 class PlatformRegistry:
 
-    def __init__(self):
+    def __init__(self, cold_start_engine=None):
         self._platforms: Dict[str, Platform] = {}
         self._slug_index: Dict[str, str] = {}
         self._key_index: Dict[str, str] = {}
+        self._cold_start_engine = cold_start_engine
 
     def register(
         self,
@@ -37,7 +38,12 @@ class PlatformRegistry:
         slug: str,
         owner_email: str,
         quotas: Optional[PlatformQuotas] = None,
-    ) -> tuple[Platform, str]:
+        entity_types: Optional[List[str]] = None,
+        objectives: Optional[List[str]] = None,
+        category_hint: str = "",
+        description: str = "",
+        regions: Optional[List[str]] = None,
+    ) -> tuple:
         if not _SLUG_RE.match(slug):
             raise ValueError(
                 f"Invalid slug '{slug}': must be 3-64 lowercase alphanumeric, "
@@ -59,8 +65,23 @@ class PlatformRegistry:
         self._slug_index[slug] = platform.id
         self._key_index[platform.api_key_hash] = platform.id
 
+        cold_start_result = None
+        if self._cold_start_engine is not None:
+            try:
+                cold_start_result = self._cold_start_engine.run(
+                    platform_id=platform.id,
+                    name=name,
+                    description=description,
+                    entity_types=entity_types,
+                    objectives=objectives,
+                    category_hint=category_hint,
+                    regions=regions,
+                )
+            except Exception:
+                logger.exception("Cold start failed for platform %s", platform.id)
+
         logger.info(f"Registered platform '{name}' (slug={slug}, id={platform.id})")
-        return platform, raw_key
+        return platform, raw_key, cold_start_result
 
     def get_by_id(self, platform_id: str) -> Optional[Platform]:
         return self._platforms.get(platform_id)

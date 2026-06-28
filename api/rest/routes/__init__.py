@@ -13,6 +13,7 @@ from .cross_platform import router as cross_platform_router
 from .analytics import router as analytics_router
 from .admin import router as admin_router
 from .budget import router as budget_router
+from .cold_start import router as cold_start_router
 
 __all__ = [
     "health_router",
@@ -30,4 +31,5 @@ __all__ = [
     "analytics_router",
     "admin_router",
     "budget_router",
+    "cold_start_router",
 ]
